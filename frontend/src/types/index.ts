@@ -1,24 +1,26 @@
 export interface DNSInfo {
-  domain: string
-  a_records: string[]
-  aaaa_records: string[]
-  mx_records: Array<{
+  domain?: string
+  a_records?: string[]
+  aaaa_records?: string[]
+  mx_records?: Array<{
     priority: number
     host: string
   }>
-  txt_records: string[]
-  ns_records: string[]
-  cname_records: string[]
+  txt_records?: string[]
+  ns_records?: string[]
+  cname_records?: string[]
+  error?: string
 }
 
 export interface WhoisInfo {
-  domain: string
-  registrar: string | null
-  creation_date: string | null
-  expiration_date: string | null
-  name_servers: string[]
-  emails: string[]
-  status: string | null
+  domain?: string
+  registrar?: string | null
+  creation_date?: string | null
+  expiration_date?: string | null
+  name_servers?: string[]
+  emails?: string[]
+  status?: string | null
+  error?: string
 }
 
 export interface ScanResults {

@@ -1,6 +1,5 @@
 import { Box } from '@mui/material'
 import Header from './Header'
-import Sidebar from './Sidebar'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -8,13 +7,18 @@ interface LayoutProps {
 
 const Layout = ({ children }: LayoutProps) => {
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: '#f5f5f5' }}>
       <Header />
-      <Box sx={{ flex: 1, display: 'flex' }}>
-        <Sidebar />
-        <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
-          {children}
-        </Box>
+      <Box 
+        component="main" 
+        sx={{ 
+          flex: 1,
+          p: 4,
+          bgcolor: 'background.default',
+          minHeight: 'calc(100vh - 64px)',
+        }}
+      >
+        {children}
       </Box>
     </Box>
   )

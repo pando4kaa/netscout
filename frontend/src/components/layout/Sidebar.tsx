@@ -33,8 +33,25 @@ const Sidebar = () => {
                 component={Link}
                 to={item.path}
                 selected={location.pathname === item.path}
+                sx={{
+                  '&.Mui-selected': {
+                    bgcolor: 'primary.light',
+                    color: 'primary.main',
+                    '&:hover': {
+                      bgcolor: 'primary.light',
+                    },
+                  },
+                  '&:hover': {
+                    bgcolor: 'action.hover',
+                  },
+                }}
               >
-                <ListItemText primary={item.text} />
+                <ListItemText 
+                  primary={item.text}
+                  primaryTypographyProps={{
+                    fontWeight: location.pathname === item.path ? 600 : 400,
+                  }}
+                />
               </ListItemButton>
             </ListItem>
           ))}

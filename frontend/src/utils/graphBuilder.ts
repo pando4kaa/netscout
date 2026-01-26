@@ -43,30 +43,32 @@ export const buildGraphElements = (scanData: ScanResults): GraphElements => {
   })
 
   // Add IP address nodes
-  scanData.dns_info?.a_records?.forEach((ip) => {
-    const ipNodeId = `ip_${ip}`
-    if (!nodes.find((n) => n.data.id === ipNodeId)) {
-      nodes.push({
+  if (scanData.dns_info && !scanData.dns_info.error && scanData.dns_info.a_records) {
+    scanData.dns_info.a_records.forEach((ip) => {
+      const ipNodeId = `ip_${ip}`
+      if (!nodes.find((n) => n.data.id === ipNodeId)) {
+        nodes.push({
+          data: {
+            id: ipNodeId,
+            label: ip,
+            type: 'ip',
+            color: NODE_COLORS.ip,
+          },
+        })
+      }
+
+      // Connect domain to IP
+      edges.push({
         data: {
-          id: ipNodeId,
-          label: ip,
-          type: 'ip',
-          color: NODE_COLORS.ip,
+          source: scanData.target_domain,
+          target: ipNodeId,
         },
       })
-    }
 
-    // Connect domain to IP
-    edges.push({
-      data: {
-        source: scanData.target_domain,
-        target: ipNodeId,
-      },
+      // Connect subdomains to their IPs (if we have that info)
+      // This would require additional data structure
     })
-
-    // Connect subdomains to their IPs (if we have that info)
-    // This would require additional data structure
-  })
+  }
 
   return { nodes, edges }
 }

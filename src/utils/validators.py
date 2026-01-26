@@ -3,7 +3,6 @@ Domain validation utilities
 """
 
 import re
-from typing import str as StrType
 
 
 # Regular expression for valid domain name

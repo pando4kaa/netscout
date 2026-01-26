@@ -37,26 +37,26 @@ def scan_domain(domain: str) -> dict:
     
     # DNS scan
     try:
-        print("  → Running DNS scan...")
+        print("  -> Running DNS scan...")
         results["dns_info"] = get_dns_records(domain)
     except Exception as e:
-        print(f"  ✗ DNS scan failed: {e}")
+        print(f"  [ERROR] DNS scan failed: {e}")
         results["dns_info"] = {"error": str(e)}
     
     # WHOIS lookup
     try:
-        print("  → Running WHOIS lookup...")
+        print("  -> Running WHOIS lookup...")
         results["whois_info"] = get_whois_info(domain)
     except Exception as e:
-        print(f"  ✗ WHOIS lookup failed: {e}")
+        print(f"  [ERROR] WHOIS lookup failed: {e}")
         results["whois_info"] = {"error": str(e)}
     
     # Subdomain discovery
     try:
-        print("  → Running subdomain discovery...")
+        print("  -> Running subdomain discovery...")
         results["subdomains"] = find_subdomains_passive(domain)
     except Exception as e:
-        print(f"  ✗ Subdomain discovery failed: {e}")
+        print(f"  [ERROR] Subdomain discovery failed: {e}")
         results["subdomains"] = []
     
     # Summary

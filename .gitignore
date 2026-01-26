@@ -208,3 +208,6 @@ __marimo__/
 
 # Guides and instructions (not for GitHub)
 guides/
+
+# Backend venv (should use root venv instead)
+backend/venv/

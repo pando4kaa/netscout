@@ -5,14 +5,18 @@ import { ScanResults } from '../../types'
 
 interface GraphViewProps {
   data: ScanResults | null
+  setCyInstance?: (cy: cytoscape.Core | null) => void
 }
 
-const GraphView = ({ data }: GraphViewProps) => {
+const GraphView = ({ data, setCyInstance }: GraphViewProps) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const cyRef = useRef<cytoscape.Core | null>(null)
 
   useEffect(() => {
-    if (!containerRef.current || !data) return
+    if (!containerRef.current || !data) {
+      if (setCyInstance) setCyInstance(null)
+      return
+    }
 
     const elements = buildGraphElements(data)
 
@@ -45,11 +49,21 @@ const GraphView = ({ data }: GraphViewProps) => {
     })
 
     cyRef.current = cy
+    if (setCyInstance) setCyInstance(cy)
 
     return () => {
       cy.destroy()
+      if (setCyInstance) setCyInstance(null)
     }
-  }, [data])
+  }, [data, setCyInstance])
+
+  if (!data) {
+    return (
+      <div style={{ width: '100%', height: '600px', border: '1px solid #ccc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p>No data available</p>
+      </div>
+    )
+  }
 
   return (
     <div

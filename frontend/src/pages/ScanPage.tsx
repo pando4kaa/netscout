@@ -1,23 +1,47 @@
-import { useState } from 'react'
-import { Container, Box } from '@mui/material'
+import { useState, useEffect } from 'react'
+import { Container, Box, Typography, Alert } from '@mui/material'
+import { useNavigate } from 'react-router-dom'
 import Dashboard from '../components/dashboard/Dashboard'
 import GraphView from '../components/graph/GraphView'
 import GraphControls from '../components/graph/GraphControls'
-import { ScanResults } from '../types'
+import { useScanStore } from '../store/useScanStore'
 
 const ScanPage = () => {
-  const [scanResults, setScanResults] = useState<ScanResults | null>(null)
   const [cyInstance, setCyInstance] = useState<any>(null)
+  const { currentScan } = useScanStore()
+  const navigate = useNavigate()
 
-  // TODO: Load scan results from API or store
+  useEffect(() => {
+    // Redirect to home if no scan results
+    if (!currentScan) {
+      navigate('/')
+    }
+  }, [currentScan, navigate])
+
+  if (!currentScan) {
+    return (
+      <Container maxWidth="xl">
+        <Box sx={{ py: 4 }}>
+          <Alert severity="info">
+            No scan results available. Please start a scan from the home page.
+          </Alert>
+        </Box>
+      </Container>
+    )
+  }
 
   return (
     <Container maxWidth="xl">
-      <Box sx={{ py: 2 }}>
-        <Dashboard scanResults={scanResults} />
-        <Box sx={{ mt: 4 }}>
+      <Box sx={{ py: 3 }}>
+        <Typography variant="h4" component="h1" gutterBottom sx={{ mb: 3 }}>
+          Scan Results: {currentScan.target_domain}
+        </Typography>
+        <Dashboard scanResults={currentScan} />
+        <Box sx={{ mt: 5 }}>
           <GraphControls cy={cyInstance} />
-          <GraphView data={scanResults} />
+          <Box sx={{ mt: 2 }}>
+            <GraphView data={currentScan} setCyInstance={setCyInstance} />
+          </Box>
         </Box>
       </Box>
     </Container>
