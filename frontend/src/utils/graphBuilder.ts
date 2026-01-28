@@ -1,74 +1,148 @@
 import { ScanResults, GraphElements } from '../types'
 
-const NODE_COLORS = {
-  domain: '#1976d2',
-  subdomain: '#2e7d32',
-  ip: '#ed6c02',
-}
+export const NODE_TYPES = {
+  domain: 'domain',
+  subdomain: 'subdomain',
+  ip: 'ip',
+  mx: 'mx',
+  ns: 'ns',
+} as const
 
 export const buildGraphElements = (scanData: ScanResults): GraphElements => {
   const nodes: any[] = []
   const edges: any[] = []
+  const addedNodes = new Set<string>()
 
   if (!scanData) {
     return { nodes, edges }
   }
 
   // Add main domain node
+  const domainId = `domain_${scanData.target_domain}`
   nodes.push({
     data: {
-      id: scanData.target_domain,
+      id: domainId,
       label: scanData.target_domain,
-      type: 'domain',
-      color: NODE_COLORS.domain,
+      type: NODE_TYPES.domain,
     },
   })
+  addedNodes.add(domainId)
 
-  // Add subdomain nodes
-  scanData.subdomains?.forEach((subdomain) => {
-    nodes.push({
-      data: {
-        id: subdomain,
-        label: subdomain,
-        type: 'subdomain',
-        color: NODE_COLORS.subdomain,
-      },
-    })
-    edges.push({
-      data: {
-        source: scanData.target_domain,
-        target: subdomain,
-      },
-    })
-  })
-
-  // Add IP address nodes
+  // Add IP address nodes (connect to main domain)
   if (scanData.dns_info && !scanData.dns_info.error && scanData.dns_info.a_records) {
     scanData.dns_info.a_records.forEach((ip) => {
       const ipNodeId = `ip_${ip}`
-      if (!nodes.find((n) => n.data.id === ipNodeId)) {
+      if (!addedNodes.has(ipNodeId)) {
         nodes.push({
           data: {
             id: ipNodeId,
             label: ip,
-            type: 'ip',
-            color: NODE_COLORS.ip,
+            type: NODE_TYPES.ip,
           },
         })
+        addedNodes.add(ipNodeId)
       }
 
-      // Connect domain to IP
       edges.push({
         data: {
-          source: scanData.target_domain,
+          id: `edge_${domainId}_${ipNodeId}`,
+          source: domainId,
           target: ipNodeId,
+          edgeType: 'ip',
         },
       })
-
-      // Connect subdomains to their IPs (if we have that info)
-      // This would require additional data structure
     })
   }
+
+  // Add MX record nodes
+  if (scanData.dns_info && !scanData.dns_info.error && scanData.dns_info.mx_records) {
+    scanData.dns_info.mx_records.forEach((mx) => {
+      const mxNodeId = `mx_${mx.host}`
+      if (!addedNodes.has(mxNodeId)) {
+        nodes.push({
+          data: {
+            id: mxNodeId,
+            label: mx.host.replace(/\.$/, ''), // Remove trailing dot
+            type: NODE_TYPES.mx,
+            priority: mx.priority,
+          },
+        })
+        addedNodes.add(mxNodeId)
+      }
+
+      edges.push({
+        data: {
+          id: `edge_${domainId}_${mxNodeId}`,
+          source: domainId,
+          target: mxNodeId,
+          edgeType: 'mx',
+        },
+      })
+    })
+  }
+
+  // Add NS record nodes
+  if (scanData.dns_info && !scanData.dns_info.error && scanData.dns_info.ns_records) {
+    scanData.dns_info.ns_records.forEach((ns) => {
+      const nsNodeId = `ns_${ns}`
+      if (!addedNodes.has(nsNodeId)) {
+        nodes.push({
+          data: {
+            id: nsNodeId,
+            label: ns.replace(/\.$/, ''), // Remove trailing dot
+            type: NODE_TYPES.ns,
+          },
+        })
+        addedNodes.add(nsNodeId)
+      }
+
+      edges.push({
+        data: {
+          id: `edge_${domainId}_${nsNodeId}`,
+          source: domainId,
+          target: nsNodeId,
+          edgeType: 'ns',
+        },
+      })
+    })
+  }
+
+  // Add subdomain nodes (limit to avoid overcrowding)
+  const maxSubdomains = 50 // Limit for performance and readability
+  const subdomainsToShow = scanData.subdomains?.slice(0, maxSubdomains) || []
+  
+  subdomainsToShow.forEach((subdomain) => {
+    const subdomainId = `subdomain_${subdomain}`
+    if (!addedNodes.has(subdomainId)) {
+      // Shorten label if too long
+      let label = subdomain
+      if (label.length > 30) {
+        const parts = label.split('.')
+        if (parts.length > 2) {
+          label = parts[0] + '...' + parts.slice(-2).join('.')
+        }
+      }
+
+      nodes.push({
+        data: {
+          id: subdomainId,
+          label: label,
+          fullLabel: subdomain,
+          type: NODE_TYPES.subdomain,
+        },
+      })
+      addedNodes.add(subdomainId)
+
+      edges.push({
+        data: {
+          id: `edge_${domainId}_${subdomainId}`,
+          source: domainId,
+          target: subdomainId,
+          edgeType: 'subdomain',
+        },
+      })
+    }
+  })
 
   return { nodes, edges }
 }
