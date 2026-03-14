@@ -60,6 +60,7 @@ cover/
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
+data/scans.db
 
 # Flask stuff:
 instance/
@@ -199,6 +200,7 @@ cython_debug/
 #  Cursor is an AI-powered code editor. `.cursorignore` specifies files/directories to
 #  exclude from AI features like autocomplete and code analysis. Recommended for sensitive data
 #  refer to https://docs.cursor.com/context/ignore-files
+.cursor/
 .cursorignore
 .cursorindexingignore
 
@@ -209,3 +211,5 @@ __marimo__/
 
 
 backend/venv/
+
+docs/

@@ -6,6 +6,7 @@ interface StatsCardsProps {
 }
 
 const StatsCards = ({ scanResults }: StatsCardsProps) => {
+  const riskScore = scanResults.summary?.risk_score ?? 0
   const stats = [
     {
       title: 'Subdomains',
@@ -23,16 +24,21 @@ const StatsCards = ({ scanResults }: StatsCardsProps) => {
       color: '#1976d2',
     },
     {
-      title: 'Risk Score',
-      value: 'N/A', // TODO: Calculate risk score
+      title: 'Alerts',
+      value: scanResults.summary?.total_alerts ?? scanResults.alerts?.length ?? 0,
       color: '#d32f2f',
+    },
+    {
+      title: 'Risk Score',
+      value: riskScore,
+      color: riskScore >= 20 ? '#d32f2f' : riskScore >= 10 ? '#ed6c02' : '#2e7d32',
     },
   ]
 
   return (
     <Grid container spacing={3}>
       {stats.map((stat) => (
-        <Grid item xs={12} sm={6} md={3} key={stat.title}>
+        <Grid item xs={12} sm={6} md={4} lg={2} key={stat.title}>
           <Card>
             <CardContent>
               <Typography color="text.secondary" gutterBottom>

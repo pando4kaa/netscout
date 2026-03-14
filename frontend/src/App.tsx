@@ -1,10 +1,17 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { ThemeProvider, createTheme } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
+import { AuthProvider } from './contexts/AuthContext'
 import Layout from './components/layout/Layout'
 import HomePage from './pages/HomePage'
 import ScanPage from './pages/ScanPage'
 import HistoryPage from './pages/HistoryPage'
+import SchedulesPage from './pages/SchedulesPage'
+import InvestigationsPage from './pages/InvestigationsPage'
+import InvestigationDetailPage from './pages/InvestigationDetailPage'
+import InvestigationSharedPage from './pages/InvestigationSharedPage'
+import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
 
 const theme = createTheme({
   palette: {
@@ -87,15 +94,23 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Router>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/scan" element={<ScanPage />} />
-            <Route path="/history" element={<HistoryPage />} />
-          </Routes>
-        </Layout>
-      </Router>
+      <AuthProvider>
+        <Router>
+          <Layout>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/scan" element={<ScanPage />} />
+              <Route path="/history" element={<HistoryPage />} />
+              <Route path="/schedules" element={<SchedulesPage />} />
+              <Route path="/investigations" element={<InvestigationsPage />} />
+              <Route path="/investigations/shared/:token" element={<InvestigationSharedPage />} />
+              <Route path="/investigations/:id" element={<InvestigationDetailPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+            </Routes>
+          </Layout>
+        </Router>
+      </AuthProvider>
     </ThemeProvider>
   )
 }

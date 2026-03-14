@@ -1,11 +1,21 @@
 # Core libraries for OSINT system
 dnspython>=2.4.0          # DNS queries
 python-whois>=0.8.0        # WHOIS lookups
-requests>=2.31.0           # HTTP requests
-httpx>=0.25.0              # Async HTTP (for future use)
+requests>=2.31.0           # HTTP requests (legacy, dnsdumpster)
+aiohttp>=3.9.0             # Async HTTP for enrichers
+aiodns>=3.0.0              # Async DNS for brute-force
+beautifulsoup4>=4.12.0     # HTML parsing (tech detector, security.txt)
+dnsdumpster>=0.8.0         # DNSDumpster subdomain discovery (scraping)
 
 # Data processing
 python-dateutil>=2.8.2     # Date parsing
 
 # Utilities
 python-dotenv>=1.0.0       # Environment variables
+geoip2>=4.7.0              # GeoIP lookup (optional: requires GeoLite2-City.mmdb)
+
+# Database
+sqlalchemy>=2.0.0          # ORM for PostgreSQL
+neo4j>=5.14.0              # Neo4j graph database driver
+redis>=5.0.0               # Cache and rate limiting
+tenacity>=8.2.0            # Retry with backoff for 429

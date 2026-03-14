@@ -1,11 +1,16 @@
 import { ScanResults, GraphElements } from '../types'
 
+export const MAX_SUBDOMAINS_IN_GRAPH = 50
+
 export const NODE_TYPES = {
   domain: 'domain',
   subdomain: 'subdomain',
   ip: 'ip',
   mx: 'mx',
   ns: 'ns',
+  certificate: 'certificate',
+  port: 'port',
+  technology: 'technology',
 } as const
 
 export const buildGraphElements = (scanData: ScanResults): GraphElements => {
@@ -108,8 +113,7 @@ export const buildGraphElements = (scanData: ScanResults): GraphElements => {
   }
 
   // Add subdomain nodes (limit to avoid overcrowding)
-  const maxSubdomains = 50 // Limit for performance and readability
-  const subdomainsToShow = scanData.subdomains?.slice(0, maxSubdomains) || []
+  const subdomainsToShow = scanData.subdomains?.slice(0, MAX_SUBDOMAINS_IN_GRAPH) || []
   
   subdomainsToShow.forEach((subdomain) => {
     const subdomainId = `subdomain_${subdomain}`
@@ -143,6 +147,76 @@ export const buildGraphElements = (scanData: ScanResults): GraphElements => {
       })
     }
   })
+
+  // Add port nodes (from port_scan) - after IPs and subdomains
+  if (scanData.port_scan) {
+    scanData.port_scan.forEach((ps) => {
+      ps.open_ports?.forEach((op) => {
+        const portNodeId = `port_${ps.ip}_${op.port}`
+        if (!addedNodes.has(portNodeId)) {
+          nodes.push({
+            data: {
+              id: portNodeId,
+              label: `${op.port} (${op.service || 'tcp'})`,
+              type: NODE_TYPES.port,
+              ip: ps.ip,
+              port: op.port,
+            },
+          })
+          addedNodes.add(portNodeId)
+          const ipNodeId = `ip_${ps.ip}`
+          if (addedNodes.has(ipNodeId)) {
+            edges.push({
+              data: {
+                id: `edge_${ipNodeId}_${portNodeId}`,
+                source: ipNodeId,
+                target: portNodeId,
+                edgeType: 'port',
+              },
+            })
+          }
+        }
+      })
+    })
+  }
+
+  // Add certificate nodes (from ssl_info)
+  if (scanData.ssl_info?.certificates) {
+    scanData.ssl_info.certificates.slice(0, 10).forEach((cert) => {
+      const certNodeId = `cert_${cert.host}`
+      if (!addedNodes.has(certNodeId)) {
+        nodes.push({
+          data: {
+            id: certNodeId,
+            label: cert.host,
+            type: NODE_TYPES.certificate,
+            is_expired: cert.is_expired,
+          },
+        })
+        addedNodes.add(certNodeId)
+        const subdomainId = `subdomain_${cert.host}`
+        if (addedNodes.has(subdomainId)) {
+          edges.push({
+            data: {
+              id: `edge_${subdomainId}_${certNodeId}`,
+              source: subdomainId,
+              target: certNodeId,
+              edgeType: 'certificate',
+            },
+          })
+        } else {
+          edges.push({
+            data: {
+              id: `edge_${domainId}_${certNodeId}`,
+              source: domainId,
+              target: certNodeId,
+              edgeType: 'certificate',
+            },
+          })
+        }
+      }
+    })
+  }
 
   return { nodes, edges }
 }

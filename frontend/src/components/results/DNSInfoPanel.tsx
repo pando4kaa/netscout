@@ -122,6 +122,44 @@ const DNSInfoPanel = ({ dnsInfo }: DNSInfoPanelProps) => {
         </CardContent>
       </Card>
 
+      {/* Email Security (SPF, DMARC, DKIM) */}
+      {dnsInfo.email_security && (
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              Email Security (SPF / DMARC / DKIM)
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Chip
+                  label={dnsInfo.email_security.spf_present ? 'SPF' : 'No SPF'}
+                  size="small"
+                  color={dnsInfo.email_security.spf_present ? 'success' : 'warning'}
+                />
+                <Chip
+                  label={dnsInfo.email_security.dmarc_present ? `DMARC (${dnsInfo.email_security.dmarc_policy || '?'})` : 'No DMARC'}
+                  size="small"
+                  color={dnsInfo.email_security.dmarc_present ? 'success' : 'error'}
+                />
+                {dnsInfo.email_security.dkim_hints && dnsInfo.email_security.dkim_hints.length > 0 && (
+                  <Chip label="DKIM hints" size="small" color="info" />
+                )}
+              </Box>
+              {dnsInfo.email_security.spf_record && (
+                <Typography variant="caption" sx={{ fontFamily: 'monospace', wordBreak: 'break-all', display: 'block' }}>
+                  SPF: {dnsInfo.email_security.spf_record}
+                </Typography>
+              )}
+              {dnsInfo.email_security.dmarc_record && (
+                <Typography variant="caption" sx={{ fontFamily: 'monospace', wordBreak: 'break-all', display: 'block' }}>
+                  DMARC: {dnsInfo.email_security.dmarc_record}
+                </Typography>
+              )}
+            </Box>
+          </CardContent>
+        </Card>
+      )}
+
       {/* TXT Records */}
       <Card>
         <CardContent>
@@ -151,6 +189,75 @@ const DNSInfoPanel = ({ dnsInfo }: DNSInfoPanelProps) => {
           )}
         </CardContent>
       </Card>
+
+      {/* SOA Records */}
+      {dnsInfo.soa_records && dnsInfo.soa_records.length > 0 && (
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              SOA Records
+              <Chip label={dnsInfo.soa_records.length} size="small" />
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {dnsInfo.soa_records.map((soa, index) => (
+                <Typography key={index} variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                  {soa}
+                </Typography>
+              ))}
+            </Box>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* PTR Records (Reverse DNS) */}
+      {dnsInfo.ptr_records && Object.keys(dnsInfo.ptr_records).length > 0 && (
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              PTR Records (Reverse DNS)
+              <Chip label={Object.keys(dnsInfo.ptr_records).length} size="small" />
+            </Typography>
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>IP</TableCell>
+                    <TableCell>Hostname</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {Object.entries(dnsInfo.ptr_records).map(([ip, hostname]) => (
+                    <TableRow key={ip}>
+                      <TableCell>{ip}</TableCell>
+                      <TableCell sx={{ fontFamily: 'monospace' }}>{hostname}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Zone Transfer (AXFR) */}
+      {dnsInfo.zone_transfer_attempted && (
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              Zone Transfer (AXFR)
+              <Chip
+                label={dnsInfo.zone_transfer_available ? 'Available' : 'Not available'}
+                size="small"
+                color={dnsInfo.zone_transfer_available ? 'error' : 'default'}
+              />
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Attempted: {dnsInfo.zone_transfer_attempted ? 'Yes' : 'No'}
+              {dnsInfo.zone_transfer_error && ` • Error: ${dnsInfo.zone_transfer_error}`}
+            </Typography>
+          </CardContent>
+        </Card>
+      )}
 
       {/* CNAME Records */}
       {dnsInfo.cname_records && dnsInfo.cname_records.length > 0 && (

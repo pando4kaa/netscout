@@ -1,6 +1,7 @@
 import { Grid, Alert } from '@mui/material'
 import StatsCards from './StatsCards'
 import SummaryTable from './SummaryTable'
+import AlertsPanel from './AlertsPanel'
 import { ScanResults } from '../../types'
 
 interface DashboardProps {
@@ -33,6 +34,11 @@ const Dashboard = ({ scanResults }: DashboardProps) => {
       <Grid item xs={12}>
         <SummaryTable scanResults={scanResults} />
       </Grid>
+      {(scanResults.alerts?.length ?? 0) > 0 && (
+        <Grid item xs={12}>
+          <AlertsPanel scanResults={scanResults} />
+        </Grid>
+      )}
     </Grid>
   )
 }

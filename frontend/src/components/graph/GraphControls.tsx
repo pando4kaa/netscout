@@ -1,14 +1,15 @@
-import { useState } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import {
   Box,
   Button,
   ButtonGroup,
-  IconButton,
   Tooltip,
   Paper,
-  Slider,
   Typography,
   Divider,
+  FormGroup,
+  FormControlLabel,
+  Checkbox,
 } from '@mui/material'
 import { Core } from 'cytoscape'
 import ZoomInIcon from '@mui/icons-material/ZoomIn'
@@ -100,8 +101,46 @@ const LAYOUTS = [
   },
 ]
 
+const NODE_TYPE_OPTIONS = [
+  { key: 'domain', label: 'Domain' },
+  { key: 'subdomain', label: 'Subdomain' },
+  { key: 'ip', label: 'IP' },
+  { key: 'mx', label: 'MX' },
+  { key: 'ns', label: 'NS' },
+  { key: 'certificate', label: 'Certificate' },
+  { key: 'port', label: 'Port' },
+] as const
+
 const GraphControls = ({ cy, onLayoutChange }: GraphControlsProps) => {
   const [activeLayout, setActiveLayout] = useState('concentric')
+  const [visibleTypes, setVisibleTypes] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(NODE_TYPE_OPTIONS.map((o) => [o.key, true]))
+  )
+
+  const applyFilter = useCallback(
+    (types: Record<string, boolean>) => {
+      if (!cy) return
+      cy.nodes().forEach((node) => {
+        const nodeType = node.data('type')
+        if (types[nodeType] !== false) {
+          node.show()
+        } else {
+          node.hide()
+        }
+      })
+    },
+    [cy]
+  )
+
+  const handleFilterChange = (key: string, checked: boolean) => {
+    const next = { ...visibleTypes, [key]: checked }
+    setVisibleTypes(next)
+    applyFilter(next)
+  }
+
+  useEffect(() => {
+    if (cy) applyFilter(visibleTypes)
+  }, [cy, visibleTypes, applyFilter])
 
   const handleLayoutChange = (layoutName: string, options: any = {}) => {
     if (cy) {
@@ -160,6 +199,45 @@ const GraphControls = ({ cy, onLayoutChange }: GraphControlsProps) => {
       link.download = `graph-${new Date().toISOString().slice(0, 10)}.png`
       link.click()
     }
+  }
+
+  const handleExportJSON = () => {
+    if (cy) {
+      const elements = cy.elements().jsons()
+      const data = { nodes: elements.filter((e: any) => e.group === 'nodes'), edges: elements.filter((e: any) => e.group === 'edges') }
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(blob)
+      link.download = `graph-${new Date().toISOString().slice(0, 10)}.json`
+      link.click()
+      URL.revokeObjectURL(link.href)
+    }
+  }
+
+  const handleExportGEXF = () => {
+    if (!cy) return
+    const nodes = cy.nodes()
+    const edges = cy.edges()
+    const escapeXml = (s: string) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<gexf xmlns="http://www.gexf.net/1.2draft" version="1.2">\n<graph mode="static" defaultedgetype="directed">\n<nodes>\n'
+    nodes.forEach((node: any) => {
+      const d = node.data()
+      xml += `<node id="${escapeXml(d.id)}" label="${escapeXml(d.label || d.id)}">`
+      if (d.type) xml += `<attvalues><attvalue for="0" value="${escapeXml(d.type)}"/></attvalues>`
+      xml += '</node>\n'
+    })
+    xml += '</nodes>\n<edges>\n'
+    edges.forEach((edge: any, i: number) => {
+      const d = edge.data()
+      xml += `<edge id="e${i}" source="${escapeXml(d.source)}" target="${escapeXml(d.target)}"/>\n`
+    })
+    xml += '</edges>\n</graph>\n</gexf>'
+    const blob = new Blob([xml], { type: 'application/xml' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `graph-${new Date().toISOString().slice(0, 10)}.gexf`
+    link.click()
+    URL.revokeObjectURL(link.href)
   }
 
   return (
@@ -233,16 +311,53 @@ const GraphControls = ({ cy, onLayoutChange }: GraphControlsProps) => {
 
       <Divider orientation="vertical" flexItem />
 
+      {/* Node type filter */}
+      <Box>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+          Filter
+        </Typography>
+        <FormGroup row sx={{ flexWrap: 'wrap', gap: 0 }}>
+          {NODE_TYPE_OPTIONS.map(({ key, label }) => (
+            <FormControlLabel
+              key={key}
+              control={
+                <Checkbox
+                  size="small"
+                  checked={visibleTypes[key] !== false}
+                  onChange={(_, checked) => handleFilterChange(key, checked)}
+                />
+              }
+              label={label}
+              sx={{ mr: 1 }}
+            />
+          ))}
+        </FormGroup>
+      </Box>
+
+      <Divider orientation="vertical" flexItem />
+
       {/* Export */}
       <Box>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
           Export
         </Typography>
-        <Tooltip title="Download as PNG">
-          <Button variant="outlined" size="small" onClick={handleExportPNG} startIcon={<DownloadIcon />}>
-            PNG
-          </Button>
-        </Tooltip>
+        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+          <Tooltip title="Download as PNG">
+            <Button variant="outlined" size="small" onClick={handleExportPNG} startIcon={<DownloadIcon />}>
+              PNG
+            </Button>
+          </Tooltip>
+          <Tooltip title="Download as JSON">
+            <Button variant="outlined" size="small" onClick={handleExportJSON}>
+              JSON
+            </Button>
+          </Tooltip>
+          <Tooltip title="Download as GEXF (Gephi)">
+            <Button variant="outlined" size="small" onClick={handleExportGEXF}>
+              GEXF
+            </Button>
+          </Tooltip>
+        </Box>
       </Box>
     </Paper>
   )

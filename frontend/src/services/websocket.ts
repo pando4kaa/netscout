@@ -1,51 +1,79 @@
-import { useEffect, useState, useRef } from 'react'
+/**
+ * WebSocket for real-time scan progress.
+ * Connects to ws://host/api/ws/scan, sends {domain}, receives progress and results.
+ */
 
-interface WebSocketMessage {
+export interface ScanProgressMessage {
+  stage: string
   progress: number
   message?: string
-  data?: any
 }
 
-export const useWebSocket = (scanId: string | null) => {
-  const [progress, setProgress] = useState(0)
-  const [message, setMessage] = useState<string>('')
-  const wsRef = useRef<WebSocket | null>(null)
+export interface ScanDoneMessage {
+  stage: 'done'
+  progress: number
+  scan_id: string
+  results: Record<string, unknown>
+  saved?: boolean
+}
 
-  useEffect(() => {
-    if (!scanId) return
+export type ScanWsMessage = ScanProgressMessage | ScanDoneMessage
 
-    const ws = new WebSocket(`ws://localhost:8000/ws/scan/${scanId}`)
+export function isDoneMessage(msg: ScanWsMessage): msg is ScanDoneMessage {
+  return msg.stage === 'done'
+}
 
-    ws.onopen = () => {
-      console.log('WebSocket connected')
-    }
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
-    ws.onmessage = (event) => {
-      try {
-        const data: WebSocketMessage = JSON.parse(event.data)
-        setProgress(data.progress || 0)
-        if (data.message) {
-          setMessage(data.message)
-        }
-      } catch (error) {
-        console.error('Error parsing WebSocket message:', error)
+const getWsUrl = () => {
+  const wsBase = API_BASE.replace(/^http/, 'ws')
+  return `${wsBase}/api/ws/scan`
+}
+
+export interface ScanWebSocketCallbacks {
+  onProgress?: (progress: number, message: string) => void
+  onDone?: (scanId: string, results: Record<string, unknown>, saved?: boolean) => void
+  onError?: (error: string) => void
+}
+
+export function runScanViaWebSocket(
+  domain: string,
+  callbacks: ScanWebSocketCallbacks,
+  token?: string | null
+): () => void {
+  const wsUrl = getWsUrl()
+  const ws = new WebSocket(wsUrl)
+
+  ws.onopen = () => {
+    const payload: { domain: string; token?: string } = { domain }
+    if (token) payload.token = token
+    ws.send(JSON.stringify(payload))
+  }
+
+  ws.onmessage = (event) => {
+    try {
+      const data: ScanWsMessage = JSON.parse(event.data)
+      if (data.error) {
+        callbacks.onError?.(data.error as unknown as string)
+        ws.close()
+        return
       }
+      if (isDoneMessage(data)) {
+        callbacks.onDone?.(data.scan_id, data.results, (data as { saved?: boolean }).saved)
+        ws.close()
+      } else {
+        callbacks.onProgress?.(data.progress, data.message || '')
+      }
+    } catch (e) {
+      callbacks.onError?.('Invalid response')
     }
+  }
 
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error)
-    }
+  ws.onerror = () => {
+    callbacks.onError?.('WebSocket connection failed')
+  }
 
-    ws.onclose = () => {
-      console.log('WebSocket disconnected')
-    }
+  ws.onclose = () => {}
 
-    wsRef.current = ws
-
-    return () => {
-      ws.close()
-    }
-  }, [scanId])
-
-  return { progress, message }
+  return () => ws.close()
 }

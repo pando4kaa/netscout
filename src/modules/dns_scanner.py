@@ -1,90 +1,26 @@
 """
-DNS Scanner Module
-
-This module provides functionality to query DNS records for a domain.
+DNS Scanner Module (legacy wrapper — use src.enrichers.dns.DnsEnricher)
 """
 
-import dns.resolver
-import dns.exception
-from typing import Dict, List, Optional
+from typing import Dict
 
 
 def get_dns_records(domain: str) -> Dict:
     """
-    Retrieves DNS records for a domain.
-    
-    Args:
-        domain: Domain name to query
-    
-    Returns:
-        Dictionary with DNS records:
-        {
-            'a_records': [...],
-            'aaaa_records': [...],
-            'mx_records': [...],
-            'txt_records': [...],
-            'ns_records': [...],
-            'cname_records': [...]
-        }
-    
-    Raises:
-        DNSException: If domain doesn't exist or DNS query fails
+    Retrieves DNS records for a domain (legacy wrapper).
     """
-    results = {
-        "domain": domain,
-        "a_records": [],
-        "aaaa_records": [],
-        "mx_records": [],
-        "txt_records": [],
-        "ns_records": [],
-        "cname_records": []
+    from src.enrichers.dns import DnsEnricher
+    enricher = DnsEnricher()
+    data = enricher.enrich(domain)
+    dns_info = data.get("dns_info")
+    if dns_info is None:
+        return {"domain": domain, "a_records": [], "aaaa_records": [], "mx_records": [], "txt_records": [], "ns_records": [], "cname_records": []}
+    return {
+        "domain": dns_info.domain,
+        "a_records": dns_info.a_records,
+        "aaaa_records": dns_info.aaaa_records,
+        "mx_records": [{"priority": m.priority, "host": m.host} for m in dns_info.mx_records],
+        "txt_records": dns_info.txt_records,
+        "ns_records": dns_info.ns_records,
+        "cname_records": dns_info.cname_records,
     }
-    
-    # A records (IPv4)
-    try:
-        answers = dns.resolver.resolve(domain, 'A')
-        results["a_records"] = [str(rdata) for rdata in answers]
-    except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.exception.DNSException):
-        pass
-    
-    # AAAA records (IPv6)
-    try:
-        answers = dns.resolver.resolve(domain, 'AAAA')
-        results["aaaa_records"] = [str(rdata) for rdata in answers]
-    except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.exception.DNSException):
-        pass
-    
-    # MX records
-    try:
-        answers = dns.resolver.resolve(domain, 'MX')
-        results["mx_records"] = [
-            {"priority": rdata.preference, "host": str(rdata.exchange)}
-            for rdata in answers
-        ]
-    except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.exception.DNSException):
-        pass
-    
-    # TXT records
-    try:
-        answers = dns.resolver.resolve(domain, 'TXT')
-        results["txt_records"] = [
-            str(rdata).strip('"') for rdata in answers
-        ]
-    except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.exception.DNSException):
-        pass
-    
-    # NS records
-    try:
-        answers = dns.resolver.resolve(domain, 'NS')
-        results["ns_records"] = [str(rdata) for rdata in answers]
-    except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.exception.DNSException):
-        pass
-    
-    # CNAME records
-    try:
-        answers = dns.resolver.resolve(domain, 'CNAME')
-        results["cname_records"] = [str(rdata) for rdata in answers]
-    except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.exception.DNSException):
-        pass
-    
-    return results
