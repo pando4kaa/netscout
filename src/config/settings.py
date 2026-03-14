@@ -60,3 +60,13 @@ NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "")
 
 # Redis (optional, for cache and rate limiting)
 REDIS_URL = os.getenv("REDIS_URL", "")
+
+# Email notifications (optional; if not set, no emails sent)
+SMTP_HOST = os.getenv("SMTP_HOST", "")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_FROM = os.getenv("SMTP_FROM", "NetScout <noreply@netscout.local>")
+SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() in ("true", "1", "yes")
+# App URL for unsubscribe link (e.g. https://netscout.example.com)
+APP_URL = os.getenv("APP_URL", "http://localhost:5173")

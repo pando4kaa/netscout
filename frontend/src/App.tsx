@@ -8,6 +8,7 @@ import ScanPage from './pages/ScanPage'
 import HistoryPage from './pages/HistoryPage'
 import SchedulesPage from './pages/SchedulesPage'
 import InvestigationsPage from './pages/InvestigationsPage'
+import NotificationsPage from './pages/NotificationsPage'
 import InvestigationDetailPage from './pages/InvestigationDetailPage'
 import InvestigationSharedPage from './pages/InvestigationSharedPage'
 import LoginPage from './pages/LoginPage'
@@ -102,6 +103,7 @@ function App() {
               <Route path="/scan" element={<ScanPage />} />
               <Route path="/history" element={<HistoryPage />} />
               <Route path="/schedules" element={<SchedulesPage />} />
+              <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/investigations" element={<InvestigationsPage />} />
               <Route path="/investigations/shared/:token" element={<InvestigationSharedPage />} />
               <Route path="/investigations/:id" element={<InvestigationDetailPage />} />

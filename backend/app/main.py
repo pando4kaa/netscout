@@ -15,7 +15,7 @@ from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
-from app.api.endpoints import scan, auth, investigations
+from app.api.endpoints import scan, auth, investigations, notifications
 from app.db.database import init_db, get_db
 
 logger = logging.getLogger(__name__)
@@ -63,6 +63,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api")
 app.include_router(scan.router, prefix="/api", tags=["scan"])
 app.include_router(investigations.router, prefix="/api")
+app.include_router(notifications.router, prefix="/api", tags=["notifications"])
 
 
 @app.get("/")

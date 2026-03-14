@@ -1,11 +1,12 @@
 """
-Auth endpoints — register, login.
+Auth endpoints — register, login, profile.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_user_required
 from app.db.database import get_db
 from app.db.models import User
 from app.services.auth_service import (
@@ -52,7 +53,12 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
     token = create_access_token({"sub": str(user.id), "email": user.email})
     return TokenResponse(
         access_token=token,
-        user={"id": user.id, "email": user.email, "username": user.username},
+        user={
+            "id": user.id,
+            "email": user.email,
+            "username": user.username,
+            "email_notifications_enabled": getattr(user, "email_notifications_enabled", False),
+        },
     )
 
 
@@ -68,5 +74,32 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
     token = create_access_token({"sub": str(user.id), "email": user.email})
     return TokenResponse(
         access_token=token,
-        user={"id": user.id, "email": user.email, "username": user.username},
+        user={
+            "id": user.id,
+            "email": user.email,
+            "username": user.username,
+            "email_notifications_enabled": getattr(user, "email_notifications_enabled", False),
+        },
     )
+
+
+class UpdateEmailNotificationsRequest(BaseModel):
+    email_notifications_enabled: bool
+
+
+@router.patch("/me")
+def update_profile(
+    request: UpdateEmailNotificationsRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user_required),
+):
+    """Update user profile (e.g. email notifications preference)."""
+    user.email_notifications_enabled = request.email_notifications_enabled
+    db.commit()
+    db.refresh(user)
+    return {
+        "id": user.id,
+        "email": user.email,
+        "username": user.username,
+        "email_notifications_enabled": user.email_notifications_enabled,
+    }

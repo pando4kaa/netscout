@@ -1,19 +1,37 @@
-import { AppBar, Toolbar, Typography, Box, Button, IconButton, Menu, MenuItem } from '@mui/material'
+import { AppBar, Toolbar, Typography, Box, Button, IconButton, Menu, MenuItem, Badge, Switch, ListItemText } from '@mui/material'
 import { Link, useLocation } from 'react-router-dom'
 import AccountCircleIcon from '@mui/icons-material/AccountCircle'
-import { useState } from 'react'
+import NotificationsIcon from '@mui/icons-material/Notifications'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
+import { authApi, notificationsApi } from '../../services/api'
 
 const Header = () => {
   const location = useLocation()
-  const { user, isAuthenticated, logout } = useAuth()
+  const { user, isAuthenticated, logout, updateUser } = useAuth()
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    notificationsApi.getUnreadCount().then((d) => setUnreadCount(d.count)).catch(() => {})
+  }, [isAuthenticated, location.pathname])
 
   const handleMenu = (event: React.MouseEvent<HTMLElement>) => setAnchorEl(event.currentTarget)
   const handleClose = () => setAnchorEl(null)
   const handleLogout = () => {
     handleClose()
     logout()
+  }
+
+  const handleEmailNotificationsToggle = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const enabled = e.target.checked
+    try {
+      await authApi.updateEmailNotifications(enabled)
+      updateUser({ email_notifications_enabled: enabled })
+    } catch {
+      // revert on error
+    }
   }
 
   return (
@@ -92,11 +110,37 @@ const Header = () => {
           )}
           {isAuthenticated ? (
             <>
-              <IconButton color="inherit" onClick={handleMenu} size="large" sx={{ ml: 1 }}>
+              <IconButton
+                component={Link}
+                to="/notifications"
+                color="inherit"
+                size="large"
+                sx={{
+                  ml: 1,
+                  ...(location.pathname === '/notifications' && {
+                    bgcolor: 'rgba(255,255,255,0.1)',
+                    borderRadius: 1,
+                  }),
+                }}
+              >
+                <Badge badgeContent={unreadCount} color="error">
+                  <NotificationsIcon />
+                </Badge>
+              </IconButton>
+              <IconButton color="inherit" onClick={handleMenu} size="large">
                 <AccountCircleIcon />
               </IconButton>
               <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleClose}>
                 <MenuItem disabled>{user?.username}</MenuItem>
+                <MenuItem disableRipple>
+                  <ListItemText primary="Email-сповіщення про зміни" secondary="Надсилати на пошту" />
+                  <Switch
+                    checked={user?.email_notifications_enabled ?? false}
+                    onChange={handleEmailNotificationsToggle}
+                    size="small"
+                    color="primary"
+                  />
+                </MenuItem>
                 <MenuItem onClick={handleLogout}>Logout</MenuItem>
               </Menu>
             </>

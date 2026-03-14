@@ -37,12 +37,36 @@ def init_db() -> None:
         "ALTER TABLE scheduled_scans ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)",
         "ALTER TABLE investigations ADD COLUMN IF NOT EXISTS share_token VARCHAR(36)",
         "ALTER TABLE investigations ADD COLUMN IF NOT EXISTS share_expires_at TIMESTAMP",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS email_notifications_enabled BOOLEAN DEFAULT FALSE",
     ]:
         try:
             with engine.begin() as conn:
                 conn.execute(text(stmt))
         except Exception:
-            pass  # Column may already exist or table structure differs
+            pass
+    # Create notifications table if not exists
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS notifications (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id),
+                    domain VARCHAR(255) NOT NULL,
+                    scan_id VARCHAR(64),
+                    scan_id_prev VARCHAR(64),
+                    type VARCHAR(50) NOT NULL,
+                    title VARCHAR(255) NOT NULL,
+                    message TEXT,
+                    details JSONB,
+                    severity VARCHAR(20) DEFAULT 'info',
+                    read_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_notifications_user_id ON notifications(user_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_notifications_domain ON notifications(domain)"))
+    except Exception:
+        pass
 
 
 def get_db() -> Session:

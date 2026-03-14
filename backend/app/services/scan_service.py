@@ -53,6 +53,16 @@ def run_scan(
         except Exception:
             pass
 
+        # Create change notifications (compare with previous scan)
+        try:
+            from app.services.notification_service import create_notifications_after_scan
+            create_notifications_after_scan(
+                db, user_id, domain, scan_id,
+                results.model_dump(mode="json"),
+            )
+        except Exception:
+            pass
+
     return scan_id, results
 
 

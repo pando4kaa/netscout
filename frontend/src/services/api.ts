@@ -91,6 +91,11 @@ export const authApi = {
     const response = await api.post('/auth/login', { email, password })
     return response.data
   },
+
+  updateEmailNotifications: async (enabled: boolean) => {
+    const response = await api.patch('/auth/me', { email_notifications_enabled: enabled })
+    return response.data
+  },
 }
 
 export const investigationsApi = {
@@ -179,6 +184,70 @@ export const investigationsApi = {
     const link = document.createElement('a')
     link.href = url
     link.setAttribute('download', `investigation_${id}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  },
+}
+
+export interface Notification {
+  id: number
+  domain: string
+  scan_id: string
+  scan_id_prev: string
+  type: string
+  title: string
+  message: string
+  details: Record<string, unknown>
+  severity: 'info' | 'warning' | 'critical'
+  read_at: string | null
+  created_at: string
+}
+
+export interface NotificationReport {
+  notification: { id: number; domain: string; type: string; title: string; message: string; created_at: string }
+  comparison: Record<string, unknown>
+}
+
+export const notificationsApi = {
+  list: async (params?: { limit?: number; offset?: number; domain?: string; unread_only?: boolean }) => {
+    const search = new URLSearchParams()
+    if (params?.limit) search.set('limit', String(params.limit))
+    if (params?.offset) search.set('offset', String(params.offset))
+    if (params?.domain) search.set('domain', params.domain)
+    if (params?.unread_only) search.set('unread_only', 'true')
+    const url = search.toString() ? `/notifications?${search}` : '/notifications'
+    const response = await api.get(url)
+    return response.data as { notifications: Notification[]; unread_count: number }
+  },
+
+  getUnreadCount: async () => {
+    const response = await api.get('/notifications/unread-count')
+    return response.data as { count: number }
+  },
+
+  markRead: async (id: number) => {
+    const response = await api.patch(`/notifications/${id}/read`)
+    return response.data
+  },
+
+  markAllRead: async () => {
+    const response = await api.patch('/notifications/read-all')
+    return response.data
+  },
+
+  getReport: async (id: number) => {
+    const response = await api.get(`/notifications/${id}/report`)
+    return response.data as NotificationReport
+  },
+
+  exportJson: async (id: number) => {
+    const response = await api.get(`/notifications/${id}/export/json`, { responseType: 'blob' })
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `notification_${id}_report.json`)
     document.body.appendChild(link)
     link.click()
     link.remove()

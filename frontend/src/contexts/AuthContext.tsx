@@ -8,6 +8,7 @@ export interface UserInfo {
   id: number
   email: string
   username: string
+  email_notifications_enabled?: boolean
 }
 
 interface AuthContextType {
@@ -16,6 +17,7 @@ interface AuthContextType {
   isLoading: boolean
   login: (token: string, user: UserInfo) => void
   logout: () => void
+  updateUser: (updates: Partial<UserInfo>) => void
   isAuthenticated: boolean
 }
 
@@ -58,6 +60,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(USER_KEY)
   }, [])
 
+  const updateUser = useCallback((updates: Partial<UserInfo>) => {
+    setUser((prev) => (prev ? { ...prev, ...updates } : null))
+    const stored = localStorage.getItem(USER_KEY)
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored)
+        localStorage.setItem(USER_KEY, JSON.stringify({ ...parsed, ...updates }))
+      } catch {
+        // ignore
+      }
+    }
+  }, [])
+
   return (
     <AuthContext.Provider
       value={{
@@ -66,6 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         login,
         logout,
+        updateUser,
         isAuthenticated: !!token,
       }}
     >
