@@ -1,8 +1,77 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import cytoscape, { Core, NodeSingular } from 'cytoscape'
-import { Box, Paper, Typography, Chip } from '@mui/material'
-import { buildGraphElements, NODE_TYPES } from '../../utils/graphBuilder'
+import { Box, Paper, Typography, Chip, Menu, MenuItem } from '@mui/material'
+import ContentCopyIcon from '@mui/icons-material/ContentCopy'
+import OpenInNewIcon from '@mui/icons-material/OpenInNew'
+import CenterFocusStrongIcon from '@mui/icons-material/CenterFocusStrong'
+import { buildGraphElements } from '../../utils/graphBuilder'
 import { ScanResults } from '../../types'
+
+const MINIMAP_SIZE = { w: 140, h: 100 }
+
+function MinimapOverlay({ cy, container }: { cy: Core; container: HTMLDivElement }) {
+  const extent = cy.extent()
+  const pan = cy.pan()
+  const zoom = cy.zoom()
+  const rect = container.getBoundingClientRect()
+  const viewW = rect.width / zoom
+  const viewH = rect.height / zoom
+  const viewX = pan.x - viewW / 2
+  const viewY = pan.y - viewH / 2
+  const extW = extent.x2 - extent.x1 || 1
+  const extH = extent.y2 - extent.y1 || 1
+  const scaleX = MINIMAP_SIZE.w / extW
+  const scaleY = MINIMAP_SIZE.h / extH
+  const scale = Math.min(scaleX, scaleY)
+  const offX = (MINIMAP_SIZE.w - extW * scale) / 2 - (extent.x1 * scale)
+  const offY = (MINIMAP_SIZE.h - extH * scale) / 2 - (extent.y1 * scale)
+  const vp = {
+    x: offX + viewX * scale,
+    y: offY + viewY * scale,
+    w: viewW * scale,
+    h: viewH * scale,
+  }
+  return (
+    <Paper
+      elevation={2}
+      sx={{
+        position: 'absolute',
+        bottom: 16,
+        right: 16,
+        zIndex: 10,
+        width: MINIMAP_SIZE.w,
+        height: MINIMAP_SIZE.h,
+        bgcolor: 'rgba(255,255,255,0.95)',
+        overflow: 'hidden',
+        borderRadius: 1,
+        border: '1px solid #e0e0e0',
+      }}
+    >
+      <Box
+        sx={{
+          width: '100%',
+          height: '100%',
+          bgcolor: '#f5f5f5',
+          position: 'relative',
+        }}
+      >
+        <Box
+          sx={{
+            position: 'absolute',
+            left: vp.x,
+            top: vp.y,
+            width: Math.max(vp.w, 4),
+            height: Math.max(vp.h, 4),
+            border: '2px solid',
+            borderColor: 'primary.main',
+            bgcolor: 'rgba(25, 118, 210, 0.15)',
+            borderRadius: 0.5,
+          }}
+        />
+      </Box>
+    </Paper>
+  )
+}
 
 interface GraphViewProps {
   data: ScanResults | null
@@ -13,6 +82,8 @@ const GraphView = ({ data, setCyInstance }: GraphViewProps) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
   const cyRef = useRef<Core | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ node: NodeSingular; x: number; y: number } | null>(null)
+  const [, setMinimapUpdate] = useState(0)
 
   const showTooltip = useCallback((node: NodeSingular, event: any) => {
     if (!tooltipRef.current) return
@@ -20,8 +91,9 @@ const GraphView = ({ data, setCyInstance }: GraphViewProps) => {
     const tooltip = tooltipRef.current
     const nodeData = node.data()
     
+    const displayLabel = nodeData.fullLabel || nodeData.label
     tooltip.innerHTML = `
-      <div style="font-weight: 600; margin-bottom: 4px;">${nodeData.label}</div>
+      <div style="font-weight: 600; margin-bottom: 4px; word-break: break-all;">${displayLabel}</div>
       <div style="font-size: 12px; color: #666;">Type: ${nodeData.type}</div>
       ${nodeData.count ? `<div style="font-size: 12px; color: #666;">Count: ${nodeData.count}</div>` : ''}
     `
@@ -100,14 +172,16 @@ const GraphView = ({ data, setCyInstance }: GraphViewProps) => {
         {
           selector: 'node[type="subdomain"]',
           style: {
-            'width': 40,
-            'height': 40,
+            'width': 44,
+            'height': 44,
             'background-fill': 'radial-gradient',
             'background-gradient-stop-colors': '#66bb6a #388e3c #1b5e20',
             'background-gradient-stop-positions': '0% 50% 100%',
             'border-color': '#2e7d32',
             'color': '#1b5e20',
             'shape': 'ellipse',
+            'font-size': 10,
+            'text-max-width': '90px',
           },
         },
         // IP address nodes
@@ -153,6 +227,55 @@ const GraphView = ({ data, setCyInstance }: GraphViewProps) => {
             'shape': 'round-hexagon',
           },
         },
+        // Certificate nodes
+        {
+          selector: 'node[type="certificate"]',
+          style: {
+            'width': 36,
+            'height': 36,
+            'background-color': '#78909c',
+            'border-color': '#546e7a',
+            'color': '#37474f',
+            'shape': 'round-octagon',
+            'font-size': 9,
+          },
+        },
+        // Risk indicator: expired certificate (red border)
+        {
+          selector: 'node.risk-expired',
+          style: {
+            'border-color': '#d32f2f',
+            'border-width': 4,
+          },
+        },
+        // Risk indicator: warning (yellow border) - for future use
+        {
+          selector: 'node.risk-warning',
+          style: {
+            'border-color': '#ed6c02',
+            'border-width': 4,
+          },
+        },
+        // Port nodes
+        {
+          selector: 'node[type="port"]',
+          style: {
+            'width': 32,
+            'height': 32,
+            'background-color': '#90a4ae',
+            'border-color': '#607d8b',
+            'color': '#455a64',
+            'shape': 'round-rectangle',
+            'font-size': 9,
+          },
+        },
+        // Hide subdomain labels when zoomed out (class added via zoom listener)
+        {
+          selector: 'node[type="subdomain"].labels-hidden',
+          style: {
+            'label': '',
+          },
+        },
         // Base edge style
         {
           selector: 'edge',
@@ -175,6 +298,7 @@ const GraphView = ({ data, setCyInstance }: GraphViewProps) => {
             'line-color': '#81c784',
             'target-arrow-color': '#66bb6a',
             'line-style': 'solid',
+            'opacity': 0.6,
           },
         },
         // Edge to IP
@@ -202,6 +326,26 @@ const GraphView = ({ data, setCyInstance }: GraphViewProps) => {
             'line-color': '#80deea',
             'target-arrow-color': '#4dd0e1',
             'line-style': 'dashed',
+          },
+        },
+        // Edge to certificate
+        {
+          selector: 'edge[edgeType="certificate"]',
+          style: {
+            'line-color': '#90a4ae',
+            'target-arrow-color': '#78909c',
+            'line-style': 'dotted',
+            'opacity': 0.5,
+          },
+        },
+        // Edge to port
+        {
+          selector: 'edge[edgeType="port"]',
+          style: {
+            'line-color': '#b0bec5',
+            'target-arrow-color': '#90a4ae',
+            'line-style': 'dotted',
+            'opacity': 0.5,
           },
         },
         // Hover state for nodes
@@ -260,34 +404,62 @@ const GraphView = ({ data, setCyInstance }: GraphViewProps) => {
         concentric: function(node: any) {
           const type = node.data('type')
           if (type === 'domain') return 100
-          if (type === 'ip') return 70
-          if (type === 'ns') return 50
-          if (type === 'mx') return 50
-          return 30 // subdomains
+          if (type === 'ip') return 75
+          if (type === 'ns') return 60
+          if (type === 'mx') return 60
+          if (type === 'certificate' || type === 'port') return 20
+          return 35 // subdomains
         },
-        levelWidth: function() { return 2 },
-        minNodeSpacing: 60,
-        spacingFactor: 1.5,
+        levelWidth: function() { return 3 },
+        minNodeSpacing: 70,
+        spacingFactor: 2,
         animate: true,
         animationDuration: 500,
       },
     })
 
-    // Hover effects
+    // Collect path from node back to root (domain) - full chain
+    const getPathToRoot = (node: NodeSingular) => {
+      let path = node.union()
+      let current = node.predecessors()
+      const seen = new Set<string>([node.id()])
+      while (current.length > 0) {
+        current.forEach((n: any) => {
+          if (!seen.has(n.id())) {
+            seen.add(n.id())
+            path = path.union(n)
+          }
+        })
+        current = current.predecessors().filter((n: any) => !seen.has(n.id()))
+      }
+      const pathEdges = path.connectedEdges().filter((e: any) =>
+        path.contains(e.source()) && path.contains(e.target())
+      )
+      return path.union(pathEdges)
+    }
+
+    // Hover effects - highlight full chain from node to main domain
     cy.on('mouseover', 'node', (event) => {
       const node = event.target
       showTooltip(node, event)
       
-      // Highlight connected nodes and edges
-      const neighborhood = node.neighborhood().add(node)
+      const pathToRoot = getPathToRoot(node)
       cy.elements().addClass('faded')
-      neighborhood.removeClass('faded').addClass('highlighted')
+      pathToRoot.removeClass('faded').addClass('highlighted')
       
       // Scale up hovered node
-      node.style({
-        'width': node.data('type') === 'domain' ? 80 : node.data('type') === 'ip' ? 60 : 50,
-        'height': node.data('type') === 'domain' ? 80 : node.data('type') === 'ip' ? 60 : 50,
-      })
+      const type = node.data('type')
+      const hoverSizes: Record<string, number> = {
+        domain: 80,
+        ip: 60,
+        mx: 52,
+        ns: 52,
+        subdomain: 52,
+        certificate: 42,
+        port: 38,
+      }
+      const s = hoverSizes[type] || 50
+      node.style({ width: s, height: s })
     })
 
     cy.on('mouseout', 'node', (event) => {
@@ -299,10 +471,12 @@ const GraphView = ({ data, setCyInstance }: GraphViewProps) => {
       
       // Reset node size
       const type = node.data('type')
-      let size = 40
+      let size = 44
       if (type === 'domain') size = 70
       else if (type === 'ip') size = 50
       else if (type === 'mx' || type === 'ns') size = 45
+      else if (type === 'certificate') size = 36
+      else if (type === 'port') size = 32
       
       node.style({
         'width': size,
@@ -322,10 +496,57 @@ const GraphView = ({ data, setCyInstance }: GraphViewProps) => {
       })
     })
 
+    // Toggle subdomain labels based on zoom level to reduce clutter
+    const updateLabelVisibility = () => {
+      const zoom = cy.zoom()
+      cy.nodes('[type="subdomain"]').forEach((n: any) => {
+        if (zoom < 0.7) {
+          n.addClass('labels-hidden')
+        } else {
+          n.removeClass('labels-hidden')
+        }
+      })
+    }
+    updateLabelVisibility()
+    cy.on('zoom', () => {
+      updateLabelVisibility()
+      setMinimapUpdate((n) => n + 1)
+    })
+    cy.on('pan', () => setMinimapUpdate((n) => n + 1))
+
+    // Context menu: find node at position
+    const getNodeAtPosition = (clientX: number, clientY: number): NodeSingular | null => {
+      const container = cy.container()
+      if (!container) return null
+      const rect = container.getBoundingClientRect()
+      const x = clientX - rect.left
+      const y = clientY - rect.top
+      let found: NodeSingular | null = null
+      cy.nodes().forEach((node: any) => {
+        if (!node.visible()) return
+        const bb = node.renderedBoundingBox()
+        if (x >= bb.x1 && x <= bb.x2 && y >= bb.y1 && y <= bb.y2) {
+          found = node
+        }
+      })
+      return found
+    }
+
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault()
+      const node = getNodeAtPosition(e.clientX, e.clientY)
+      if (node) {
+        setContextMenu({ node, x: e.clientX, y: e.clientY })
+      }
+    }
+    containerRef.current?.addEventListener('contextmenu', handleContextMenu)
+
     cyRef.current = cy
     if (setCyInstance) setCyInstance(cy)
+    setMinimapUpdate((n) => n + 1)
 
     return () => {
+      containerRef.current?.removeEventListener('contextmenu', handleContextMenu)
       cy.destroy()
       if (setCyInstance) setCyInstance(null)
     }
@@ -348,8 +569,63 @@ const GraphView = ({ data, setCyInstance }: GraphViewProps) => {
     )
   }
 
+  const getNodeUrl = (node: NodeSingular) => {
+    const d = node.data()
+    const label = d.fullLabel || d.label || ''
+    if (d.type === 'ip') return `https://${label}`
+    if (label && !label.startsWith('http')) return `https://${label}`
+    return label
+  }
+
+  const handleContextMenuCopy = () => {
+    if (contextMenu) {
+      const label = contextMenu.node.data('fullLabel') || contextMenu.node.data('label') || ''
+      navigator.clipboard.writeText(label)
+    }
+    setContextMenu(null)
+  }
+
+  const handleContextMenuOpen = () => {
+    if (contextMenu) {
+      const url = getNodeUrl(contextMenu.node)
+      if (url) window.open(url, '_blank')
+    }
+    setContextMenu(null)
+  }
+
+  const handleContextMenuFocus = () => {
+    if (contextMenu && cyRef.current) {
+      cyRef.current.animate({
+        fit: { eles: contextMenu.node.neighborhood().add(contextMenu.node), padding: 80 },
+        duration: 400,
+      })
+    }
+    setContextMenu(null)
+  }
+
   return (
     <Box sx={{ position: 'relative' }}>
+      {/* Context menu */}
+      <Menu
+        open={contextMenu !== null}
+        onClose={() => setContextMenu(null)}
+        anchorReference="anchorPosition"
+        anchorPosition={contextMenu ? { top: contextMenu.y, left: contextMenu.x } : undefined}
+      >
+        <MenuItem onClick={handleContextMenuCopy}>
+          <ContentCopyIcon fontSize="small" sx={{ mr: 1 }} />
+          Copy
+        </MenuItem>
+        <MenuItem onClick={handleContextMenuOpen}>
+          <OpenInNewIcon fontSize="small" sx={{ mr: 1 }} />
+          Open in new tab
+        </MenuItem>
+        <MenuItem onClick={handleContextMenuFocus}>
+          <CenterFocusStrongIcon fontSize="small" sx={{ mr: 1 }} />
+          Focus
+        </MenuItem>
+      </Menu>
+
       {/* Legend */}
       <Paper
         sx={{
@@ -386,6 +662,14 @@ const GraphView = ({ data, setCyInstance }: GraphViewProps) => {
           <Box sx={{ width: 14, height: 14, borderRadius: '3px', background: 'linear-gradient(135deg, #4dd0e1 0%, #00acc1 100%)' }} />
           <Typography variant="caption">Name Server</Typography>
         </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ width: 12, height: 12, borderRadius: 1, bgcolor: '#78909c' }} />
+          <Typography variant="caption">Certificate</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: '#90a4ae' }} />
+          <Typography variant="caption">Port</Typography>
+        </Box>
       </Paper>
 
       {/* Tooltip */}
@@ -404,6 +688,11 @@ const GraphView = ({ data, setCyInstance }: GraphViewProps) => {
           maxWidth: 250,
         }}
       />
+
+      {/* Minimap */}
+      {cyRef.current && containerRef.current && (
+        <MinimapOverlay cy={cyRef.current} container={containerRef.current} />
+      )}
 
       {/* Graph Container */}
       <Paper
@@ -428,6 +717,7 @@ const GraphView = ({ data, setCyInstance }: GraphViewProps) => {
         <Chip label="Drag to pan" size="small" variant="outlined" />
         <Chip label="Double-click to focus" size="small" variant="outlined" />
         <Chip label="Hover for details" size="small" variant="outlined" />
+        <Chip label="Zoom in to see labels" size="small" variant="outlined" />
       </Box>
     </Box>
   )

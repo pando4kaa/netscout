@@ -12,6 +12,7 @@
   "dependencies": {
     "@emotion/react": "^11.11.0",
     "@emotion/styled": "^11.11.0",
+    "@fontsource/montserrat": "^5.2.8",
     "@mui/icons-material": "^5.15.0",
     "@mui/material": "^5.15.0",
     "@tanstack/react-query": "^5.0.0",
@@ -19,6 +20,7 @@
     "cytoscape": "^3.27.0",
     "cytoscape-lasso": "^1.1.4",
     "date-fns": "^3.0.0",
+    "html2canvas": "^1.4.1",
     "jspdf": "^4.2.0",
     "leaflet": "^1.9.4",
     "react": "^18.2.0",

@@ -6,9 +6,9 @@ import {
   Chip,
   Grid,
   Paper,
-  Divider,
 } from '@mui/material'
 import { WhoisInfo } from '../../types'
+import HelpTooltip from '../common/HelpTooltip'
 
 interface WhoisInfoPanelProps {
   whoisInfo: WhoisInfo
@@ -29,7 +29,7 @@ const WhoisInfoPanel = ({ whoisInfo }: WhoisInfoPanelProps) => {
     if (!dateStr) return 'N/A'
     try {
       const date = new Date(dateStr)
-      return date.toLocaleDateString('uk-UA', {
+      return date.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
@@ -59,9 +59,10 @@ const WhoisInfoPanel = ({ whoisInfo }: WhoisInfoPanelProps) => {
       {/* Main Info */}
       <Card>
         <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Registration Information
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <Typography variant="h6">Registration Information</Typography>
+            <HelpTooltip topic="whois" />
+          </Box>
           <Grid container spacing={3}>
             <Grid item xs={12} md={6}>
               <Paper variant="outlined" sx={{ p: 2 }}>

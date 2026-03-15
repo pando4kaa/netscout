@@ -15,6 +15,7 @@ import {
   Tooltip,
 } from '@mui/material'
 import ApiIcon from '@mui/icons-material/Api'
+import HelpTooltip from '../common/HelpTooltip'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import WarningIcon from '@mui/icons-material/Warning'
 import ErrorIcon from '@mui/icons-material/Error'
@@ -82,11 +83,16 @@ const ExternalApisPanel = ({ data }: ExternalApisPanelProps) => {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+        <Typography variant="h6">External APIs</Typography>
+        <HelpTooltip topic="external_apis" />
+      </Box>
       {data.virustotal && (
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <ApiIcon /> VirusTotal
+              <HelpTooltip topic="api_virustotal" />
             </Typography>
             {data.virustotal.last_analysis_stats && (
               <>
@@ -134,6 +140,7 @@ const ExternalApisPanel = ({ data }: ExternalApisPanelProps) => {
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <ApiIcon /> Shodan
+              <HelpTooltip topic="api_shodan" />
             </Typography>
             <TableContainer component={Paper} variant="outlined">
               <Table size="small">
@@ -166,6 +173,7 @@ const ExternalApisPanel = ({ data }: ExternalApisPanelProps) => {
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <ApiIcon /> Censys
+              <HelpTooltip topic="api_censys" />
             </Typography>
             <Typography variant="body2">Total hosts: {data.censys.total ?? 0}</Typography>
             {data.censys.hosts && data.censys.hosts.length > 0 && (
@@ -197,6 +205,7 @@ const ExternalApisPanel = ({ data }: ExternalApisPanelProps) => {
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <ApiIcon /> AlienVault OTX
+              <HelpTooltip topic="api_alienvault_otx" />
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
               <Typography variant="body2">
@@ -235,6 +244,7 @@ const ExternalApisPanel = ({ data }: ExternalApisPanelProps) => {
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <ApiIcon /> URLScan.io
+              <HelpTooltip topic="api_urlscan" />
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               {data.urlscan.total ?? 0} total scans
@@ -282,6 +292,7 @@ const ExternalApisPanel = ({ data }: ExternalApisPanelProps) => {
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <ApiIcon /> ThreatCrowd
+              <HelpTooltip topic="api_threatcrowd" />
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Community votes: {data.threatcrowd.votes ?? 0} · Crowdsourced threat intel
@@ -305,6 +316,7 @@ const ExternalApisPanel = ({ data }: ExternalApisPanelProps) => {
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <ApiIcon /> BGPView
+              <HelpTooltip topic="api_bgpview" />
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               ASN and BGP prefix for resolved IPs
@@ -338,6 +350,7 @@ const ExternalApisPanel = ({ data }: ExternalApisPanelProps) => {
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <ApiIcon /> AbuseIPDB
+              <HelpTooltip topic="api_abuseipdb" />
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               IP reputation (spam, DDoS, abuse reports)
@@ -384,6 +397,7 @@ const ExternalApisPanel = ({ data }: ExternalApisPanelProps) => {
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <ApiIcon /> SecurityTrails
+              <HelpTooltip topic="api_securitytrails" />
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               {data.securitytrails.subdomain_count != null && `Subdomains indexed: ${data.securitytrails.subdomain_count}`}
@@ -458,6 +472,7 @@ const ExternalApisPanel = ({ data }: ExternalApisPanelProps) => {
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <ApiIcon /> PhishTank
+              <HelpTooltip topic="api_phishtank" />
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               Phishing database check for {data.phishtank.url ?? 'domain'}
@@ -488,6 +503,7 @@ const ExternalApisPanel = ({ data }: ExternalApisPanelProps) => {
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <ApiIcon /> ZoomEye
+              <HelpTooltip topic="api_zoomeye" />
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               Host search: {data.zoomeye.total ?? 0} results for domain:{data.zoomeye.domain ?? ''}
@@ -527,6 +543,7 @@ const ExternalApisPanel = ({ data }: ExternalApisPanelProps) => {
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <ApiIcon /> Criminal IP
+              <HelpTooltip topic="api_criminalip" />
             </Typography>
             {(() => {
               const d = data.criminalip.data as Record<string, unknown> | undefined
@@ -573,6 +590,7 @@ const ExternalApisPanel = ({ data }: ExternalApisPanelProps) => {
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <ApiIcon /> Pulsedive
+              <HelpTooltip topic="api_pulsedive" />
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, flexWrap: 'wrap' }}>
               {data.pulsedive.risk && (
@@ -618,6 +636,7 @@ const ExternalApisPanel = ({ data }: ExternalApisPanelProps) => {
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <ApiIcon /> Web Archive (Wayback Machine)
+              <HelpTooltip topic="api_wayback" />
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               First available snapshot for domain
@@ -643,6 +662,7 @@ const ExternalApisPanel = ({ data }: ExternalApisPanelProps) => {
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <ApiIcon /> SSL Labs
+              <HelpTooltip topic="api_ssllabs" />
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               TLS/cipher audit (weak protocols: TLS 1.0, TLS 1.1, SSLv3)

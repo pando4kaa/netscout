@@ -37,16 +37,23 @@ const DomainInput = () => {
         setProgressMessage(msg)
       },
       onDone: (scanId, results) => {
-        const scanResults: ScanResults = {
-          ...results,
-          scan_id: scanId,
-          scan_date: new Date().toISOString(),
+        try {
+          const scanResults: ScanResults = {
+            target_domain: results?.target_domain || normalized,
+            subdomains: Array.isArray(results?.subdomains) ? results.subdomains : [],
+            ...results,
+            scan_id: scanId,
+            scan_date: new Date().toISOString(),
+          }
+          setCurrentScan(scanResults)
+          addToHistory(scanResults)
+          setIsScanning(false)
+          setProgress(100)
+          navigate('/scan')
+        } catch (e) {
+          setError(e instanceof Error ? e.message : 'Error processing results')
+          setIsScanning(false)
         }
-        setCurrentScan(scanResults)
-        addToHistory(scanResults)
-        setIsScanning(false)
-        setProgress(100)
-        navigate('/scan')
       },
       onError: (err) => {
         setError(err)

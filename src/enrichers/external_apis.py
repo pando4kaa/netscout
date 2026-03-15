@@ -218,7 +218,9 @@ async def _phishtank_check_async(session: aiohttp.ClientSession, url: str, app_k
                     "phish_id": result.get("results", {}).get("phish_id"),
                     "phish_detail_page": result.get("results", {}).get("phish_detail_page"),
                 }
-            logger.warning("PhishTank API error: url=%s status=%s body=%s", url, resp.status, await resp.text())
+            body = await resp.text()
+            hint = "Cloudflare block" if resp.status == 403 and "cf_chl" in body[:500] else (body[:150] + "..." if len(body) > 150 else body)
+            logger.warning("PhishTank API error: url=%s status=%s (%s)", url, resp.status, hint)
     except Exception as e:
         logger.warning("PhishTank request failed: url=%s error=%s", url, e)
     return None

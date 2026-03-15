@@ -4,15 +4,9 @@ import {
   CardContent,
   Typography,
   Chip,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
 } from '@mui/material'
 import { PortScanResult } from '../../types'
+import HelpTooltip from '../common/HelpTooltip'
 
 interface PortScanPanelProps {
   portScan: PortScanResult[] | null | undefined
@@ -31,6 +25,10 @@ const PortScanPanel = ({ portScan }: PortScanPanelProps) => {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+        <Typography variant="h6">Port Scan</Typography>
+        <HelpTooltip topic="port_scan" />
+      </Box>
       {portScan.map((ps, idx) => (
         <Card key={idx}>
           <CardContent>

@@ -12,9 +12,9 @@ import {
   TableHead,
   TableRow,
   Paper,
-  Divider,
 } from '@mui/material'
 import { DNSInfo } from '../../types'
+import HelpTooltip from '../common/HelpTooltip'
 
 interface DNSInfoPanelProps {
   dnsInfo: DNSInfo
@@ -33,11 +33,16 @@ const DNSInfoPanel = ({ dnsInfo }: DNSInfoPanelProps) => {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+        <Typography variant="h6">DNS Records</Typography>
+        <HelpTooltip topic="dns" />
+      </Box>
       {/* A Records (IPv4) */}
       <Card>
         <CardContent>
           <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             A Records (IPv4)
+            <HelpTooltip topic="dns_a_record" />
             <Chip label={dnsInfo.a_records?.length || 0} size="small" color="primary" />
           </Typography>
           {dnsInfo.a_records && dnsInfo.a_records.length > 0 ? (
@@ -57,6 +62,7 @@ const DNSInfoPanel = ({ dnsInfo }: DNSInfoPanelProps) => {
         <CardContent>
           <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             AAAA Records (IPv6)
+            <HelpTooltip topic="dns_aaaa_record" />
             <Chip label={dnsInfo.aaaa_records?.length || 0} size="small" color="secondary" />
           </Typography>
           {dnsInfo.aaaa_records && dnsInfo.aaaa_records.length > 0 ? (
@@ -76,6 +82,7 @@ const DNSInfoPanel = ({ dnsInfo }: DNSInfoPanelProps) => {
         <CardContent>
           <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             MX Records (Mail Servers)
+            <HelpTooltip topic="dns_mx_record" />
             <Chip label={dnsInfo.mx_records?.length || 0} size="small" color="info" />
           </Typography>
           {dnsInfo.mx_records && dnsInfo.mx_records.length > 0 ? (
@@ -108,6 +115,7 @@ const DNSInfoPanel = ({ dnsInfo }: DNSInfoPanelProps) => {
         <CardContent>
           <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             NS Records (Name Servers)
+            <HelpTooltip topic="dns_ns_record" />
             <Chip label={dnsInfo.ns_records?.length || 0} size="small" color="success" />
           </Typography>
           {dnsInfo.ns_records && dnsInfo.ns_records.length > 0 ? (
@@ -128,6 +136,7 @@ const DNSInfoPanel = ({ dnsInfo }: DNSInfoPanelProps) => {
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               Email Security (SPF / DMARC / DKIM)
+              <HelpTooltip topic="dns_email_security" />
             </Typography>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -165,6 +174,7 @@ const DNSInfoPanel = ({ dnsInfo }: DNSInfoPanelProps) => {
         <CardContent>
           <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             TXT Records
+            <HelpTooltip topic="dns_txt_record" />
             <Chip label={dnsInfo.txt_records?.length || 0} size="small" color="warning" />
           </Typography>
           {dnsInfo.txt_records && dnsInfo.txt_records.length > 0 ? (
@@ -196,6 +206,7 @@ const DNSInfoPanel = ({ dnsInfo }: DNSInfoPanelProps) => {
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               SOA Records
+              <HelpTooltip topic="dns_soa_record" />
               <Chip label={dnsInfo.soa_records.length} size="small" />
             </Typography>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -215,6 +226,7 @@ const DNSInfoPanel = ({ dnsInfo }: DNSInfoPanelProps) => {
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               PTR Records (Reverse DNS)
+              <HelpTooltip topic="dns_ptr_record" />
               <Chip label={Object.keys(dnsInfo.ptr_records).length} size="small" />
             </Typography>
             <TableContainer component={Paper} variant="outlined">
@@ -245,6 +257,7 @@ const DNSInfoPanel = ({ dnsInfo }: DNSInfoPanelProps) => {
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               Zone Transfer (AXFR)
+              <HelpTooltip topic="dns_zone_transfer" />
               <Chip
                 label={dnsInfo.zone_transfer_available ? 'Available' : 'Not available'}
                 size="small"
@@ -265,6 +278,7 @@ const DNSInfoPanel = ({ dnsInfo }: DNSInfoPanelProps) => {
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               CNAME Records
+              <HelpTooltip topic="dns_cname_record" />
               <Chip label={dnsInfo.cname_records.length} size="small" />
             </Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>

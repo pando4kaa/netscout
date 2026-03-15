@@ -21,13 +21,14 @@ import {
 import SearchIcon from '@mui/icons-material/Search'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
+import HelpTooltip from '../common/HelpTooltip'
 
 interface SubdomainsListProps {
   subdomains: string[]
-  targetDomain: string
+  targetDomain?: string
 }
 
-const SubdomainsList = ({ subdomains, targetDomain }: SubdomainsListProps) => {
+const SubdomainsList = ({ subdomains, targetDomain = '' }: SubdomainsListProps) => {
   const [searchQuery, setSearchQuery] = useState('')
   const [page, setPage] = useState(0)
   const [rowsPerPage, setRowsPerPage] = useState(25)
@@ -81,6 +82,7 @@ const SubdomainsList = ({ subdomains, targetDomain }: SubdomainsListProps) => {
               <Typography variant="h6">
                 Discovered Subdomains
               </Typography>
+              <HelpTooltip topic="subdomains" />
               <Chip label={`${subdomains.length} total`} color="primary" />
               {searchQuery && (
                 <Chip label={`${filteredSubdomains.length} filtered`} color="secondary" variant="outlined" />

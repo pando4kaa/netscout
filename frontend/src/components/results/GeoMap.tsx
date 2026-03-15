@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
-import { Paper, Typography } from '@mui/material'
+import { Box, Paper, Typography } from '@mui/material'
+import HelpTooltip from '../common/HelpTooltip'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { ScanResults } from '../../types'
@@ -33,11 +34,17 @@ const GeoMap = ({ scanResults }: GeoMapProps) => {
 
   if (markers.length === 0) {
     return (
-      <Paper sx={{ p: 4, textAlign: 'center' }}>
-        <Typography color="text.secondary">
-          No geolocation data available. Add GeoLite2-City.mmdb to the backend and rescan.
-        </Typography>
-      </Paper>
+      <Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+          <Typography variant="h6">Geolocation</Typography>
+          <HelpTooltip topic="geo_map" />
+        </Box>
+        <Paper sx={{ p: 4, textAlign: 'center' }}>
+          <Typography color="text.secondary">
+            No geolocation data available. Add GeoLite2-City.mmdb to the backend and rescan.
+          </Typography>
+        </Paper>
+      </Box>
     )
   }
 
@@ -50,8 +57,13 @@ const GeoMap = ({ scanResults }: GeoMapProps) => {
         ]
 
   return (
-    <Paper sx={{ overflow: 'hidden', borderRadius: 2 }}>
-      <MapContainer
+    <Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+        <Typography variant="h6">Geolocation</Typography>
+        <HelpTooltip topic="geo_map" />
+      </Box>
+      <Paper sx={{ overflow: 'hidden', borderRadius: 2 }}>
+        <MapContainer
         center={center}
         zoom={markers.length === 1 ? 8 : 3}
         style={{ height: 400, width: '100%' }}
@@ -72,6 +84,7 @@ const GeoMap = ({ scanResults }: GeoMapProps) => {
         ))}
       </MapContainer>
     </Paper>
+    </Box>
   )
 }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import {
   Container,
   Box,
@@ -32,6 +32,7 @@ import WhoisInfoPanel from '../components/results/WhoisInfoPanel'
 import SubdomainsList from '../components/results/SubdomainsList'
 import GraphView from '../components/graph/GraphView'
 import GraphControls from '../components/graph/GraphControls'
+import HelpTooltip from '../components/common/HelpTooltip'
 import { useScanStore } from '../store/useScanStore'
 
 interface TabPanelProps {
@@ -59,6 +60,7 @@ function TabPanel(props: TabPanelProps) {
 const ScanPage = () => {
   const [tabValue, setTabValue] = useState(0)
   const [cyInstance, setCyInstance] = useState<any>(null)
+  const graphWrapperRef = useRef<HTMLDivElement>(null)
   const { currentScan } = useScanStore()
   const navigate = useNavigate()
 
@@ -84,6 +86,15 @@ const ScanPage = () => {
     )
   }
 
+  const safeScan = useMemo(
+    () => ({
+      ...currentScan,
+      target_domain: currentScan.target_domain || 'unknown',
+      subdomains: Array.isArray(currentScan.subdomains) ? currentScan.subdomains : [],
+    }),
+    [currentScan]
+  )
+
   return (
     <Container maxWidth="xl">
       <Box sx={{ py: 3 }}>
@@ -94,13 +105,13 @@ const ScanPage = () => {
               {currentScan.target_domain}
             </Typography>
             <Typography variant="body1" color="text.secondary">
-              Scan completed • {currentScan.subdomains?.length || 0} subdomains found
-              {currentScan.scan_date && (
-                <> • {new Date(currentScan.scan_date).toLocaleString('uk-UA', { dateStyle: 'medium', timeStyle: 'short' })}</>
+              Scan completed • {safeScan.subdomains?.length || 0} subdomains found
+              {safeScan.scan_date && (
+                <> • {new Date(safeScan.scan_date).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</>
               )}
             </Typography>
           </Box>
-          <ExportButtons scanResults={currentScan} />
+          <ExportButtons scanResults={safeScan} />
         </Box>
 
         {/* Tabs */}
@@ -136,12 +147,12 @@ const ScanPage = () => {
             />
             <Tab
               icon={<ListIcon />}
-              label={`Subdomains (${currentScan.subdomains?.length || 0})`}
+              label={`Subdomains (${safeScan.subdomains?.length || 0})`}
               iconPosition="start"
             />
             <Tab
               icon={<SecurityIcon />}
-              label={`SSL (${currentScan.ssl_info?.certificates?.length || 0})`}
+              label={`SSL (${safeScan.ssl_info?.certificates?.length || 0})`}
               iconPosition="start"
             />
             <Tab
@@ -151,17 +162,17 @@ const ScanPage = () => {
             />
             <Tab
               icon={<BuildIcon />}
-              label={`Tech (${Object.keys(currentScan.tech_stack || {}).length})`}
+              label={`Tech (${Object.keys(safeScan.tech_stack || {}).length})`}
               iconPosition="start"
             />
             <Tab
               icon={<MapIcon />}
-              label={`Map (${Object.keys(currentScan.geoip_info || {}).length})`}
+              label={`Map (${Object.keys(safeScan.geoip_info || {}).length})`}
               iconPosition="start"
             />
             <Tab
               icon={<ApiIcon />}
-              label={`APIs (${Object.keys(currentScan.external_apis || {}).length})`}
+              label={`APIs (${Object.keys(safeScan.external_apis || {}).length})`}
               iconPosition="start"
             />
             <Tab
@@ -174,54 +185,58 @@ const ScanPage = () => {
 
         {/* Tab Panels */}
         <TabPanel value={tabValue} index={0}>
-          <OverviewPanel scanResults={currentScan} />
+          <OverviewPanel scanResults={safeScan} />
         </TabPanel>
 
         <TabPanel value={tabValue} index={1}>
-          <DNSInfoPanel dnsInfo={currentScan.dns_info || {}} />
+          <DNSInfoPanel dnsInfo={safeScan.dns_info || {}} />
         </TabPanel>
 
         <TabPanel value={tabValue} index={2}>
-          <WhoisInfoPanel whoisInfo={currentScan.whois_info || {}} />
+          <WhoisInfoPanel whoisInfo={safeScan.whois_info || {}} />
         </TabPanel>
 
         <TabPanel value={tabValue} index={3}>
           <SubdomainsList
-            subdomains={currentScan.subdomains}
-            targetDomain={currentScan.target_domain}
+            subdomains={safeScan.subdomains}
+            targetDomain={safeScan.target_domain}
           />
         </TabPanel>
 
         <TabPanel value={tabValue} index={4}>
-          <SSLInfoPanel sslInfo={currentScan.ssl_info} />
+          <SSLInfoPanel sslInfo={safeScan.ssl_info} />
         </TabPanel>
 
         <TabPanel value={tabValue} index={5}>
-          <PortScanPanel portScan={currentScan.port_scan} />
+          <PortScanPanel portScan={safeScan.port_scan} />
         </TabPanel>
 
         <TabPanel value={tabValue} index={6}>
-          <TechStackPanel techStack={currentScan.tech_stack} />
+          <TechStackPanel techStack={safeScan.tech_stack} />
         </TabPanel>
 
         <TabPanel value={tabValue} index={7}>
-          <GeoMap scanResults={currentScan} />
+          <GeoMap scanResults={safeScan} />
         </TabPanel>
 
         <TabPanel value={tabValue} index={8}>
-          <ExternalApisPanel data={currentScan.external_apis} />
+          <ExternalApisPanel data={safeScan.external_apis} />
         </TabPanel>
 
         <TabPanel value={tabValue} index={9}>
-          <Box>
-            <GraphControls cy={cyInstance} />
-            {(currentScan.subdomains?.length ?? 0) > 50 && (
+          <Box ref={graphWrapperRef}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+              <Typography variant="h6">Graph</Typography>
+              <HelpTooltip topic="graph_view" />
+            </Box>
+            <GraphControls cy={cyInstance} graphWrapperRef={graphWrapperRef} />
+            {(safeScan.subdomains?.length ?? 0) > 50 && (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                Showing first 50 of {currentScan.subdomains?.length} subdomains in graph
+                Showing first 50 of {safeScan.subdomains?.length} subdomains in graph
               </Typography>
             )}
             <Box sx={{ mt: 2 }}>
-              <GraphView data={currentScan} setCyInstance={setCyInstance} />
+              <GraphView data={safeScan} setCyInstance={setCyInstance} />
             </Box>
           </Box>
         </TabPanel>

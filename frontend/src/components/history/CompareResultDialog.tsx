@@ -63,7 +63,7 @@ interface CompareResultDialogProps {
 function formatDate(iso: string | undefined): string {
   if (!iso) return '-'
   try {
-    return new Date(iso).toLocaleString('uk-UA', { dateStyle: 'medium', timeStyle: 'short' })
+    return new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
   } catch {
     return iso
   }

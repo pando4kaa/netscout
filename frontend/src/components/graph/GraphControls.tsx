@@ -10,7 +10,13 @@ import {
   FormGroup,
   FormControlLabel,
   Checkbox,
+  TextField,
+  InputAdornment,
+  Slider,
 } from '@mui/material'
+import SearchIcon from '@mui/icons-material/Search'
+import FullscreenIcon from '@mui/icons-material/Fullscreen'
+import FullscreenExitIcon from '@mui/icons-material/FullscreenExit'
 import { Core } from 'cytoscape'
 import ZoomInIcon from '@mui/icons-material/ZoomIn'
 import ZoomOutIcon from '@mui/icons-material/ZoomOut'
@@ -27,6 +33,7 @@ import ScatterPlotIcon from '@mui/icons-material/ScatterPlot'
 interface GraphControlsProps {
   cy: Core | null
   onLayoutChange?: (layout: string) => void
+  graphWrapperRef?: React.RefObject<HTMLDivElement | null>
 }
 
 const LAYOUTS = [
@@ -38,14 +45,15 @@ const LAYOUTS = [
       concentric: (node: any) => {
         const type = node.data('type')
         if (type === 'domain') return 100
-        if (type === 'ip') return 70
-        if (type === 'ns') return 50
-        if (type === 'mx') return 50
-        return 30
+        if (type === 'ip') return 75
+        if (type === 'ns') return 60
+        if (type === 'mx') return 60
+        if (type === 'certificate' || type === 'port') return 20
+        return 35
       },
-      levelWidth: () => 1,
-      minNodeSpacing: 25,
-      spacingFactor: 0.95,
+      levelWidth: () => 3,
+      minNodeSpacing: 70,
+      spacingFactor: 2,
       animate: true,
       animationDuration: 500,
     }
@@ -111,11 +119,17 @@ const NODE_TYPE_OPTIONS = [
   { key: 'port', label: 'Port' },
 ] as const
 
-const GraphControls = ({ cy, onLayoutChange }: GraphControlsProps) => {
+const MIN_ZOOM = 0.2
+const MAX_ZOOM = 3
+
+const GraphControls = ({ cy, onLayoutChange, graphWrapperRef }: GraphControlsProps) => {
   const [activeLayout, setActiveLayout] = useState('concentric')
   const [visibleTypes, setVisibleTypes] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(NODE_TYPE_OPTIONS.map((o) => [o.key, true]))
   )
+  const [searchQuery, setSearchQuery] = useState('')
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [zoomValue, setZoomValue] = useState(1)
 
   const applyFilter = useCallback(
     (types: Record<string, boolean>) => {
@@ -141,6 +155,59 @@ const GraphControls = ({ cy, onLayoutChange }: GraphControlsProps) => {
   useEffect(() => {
     if (cy) applyFilter(visibleTypes)
   }, [cy, visibleTypes, applyFilter])
+
+  useEffect(() => {
+    if (cy) {
+      setZoomValue(cy.zoom())
+      const onZoom = () => setZoomValue(cy.zoom())
+      cy.on('zoom', onZoom)
+      return () => cy.off('zoom', onZoom)
+    }
+  }, [cy])
+
+  const handleSearch = () => {
+    if (!cy || !searchQuery.trim()) return
+    const q = searchQuery.trim().toLowerCase()
+    const match = cy.nodes().filter((n: any) => {
+      const label = (n.data('fullLabel') || n.data('label') || n.data('id') || '').toLowerCase()
+      return label.includes(q)
+    })
+    if (match.length > 0) {
+      const toFit = match.length === 1 ? match.union(match.neighborhood()) : match
+      cy.animate({ fit: { eles: toFit, padding: 80 }, duration: 400 })
+      cy.elements().removeClass('highlighted')
+      match.addClass('highlighted')
+      setTimeout(() => match.removeClass('highlighted'), 2000)
+    }
+  }
+
+  const handleFullscreen = () => {
+    if (!graphWrapperRef?.current) return
+    if (!document.fullscreenElement) {
+      graphWrapperRef.current.requestFullscreen()
+      setIsFullscreen(true)
+    } else {
+      document.exitFullscreen()
+      setIsFullscreen(false)
+    }
+  }
+
+  useEffect(() => {
+    const onFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange)
+  }, [])
+
+  const handleZoomSlider = (_: Event, value: number | number[]) => {
+    const v = Array.isArray(value) ? value[0] : value
+    setZoomValue(v)
+    if (cy) {
+      cy.zoom({
+        level: v,
+        renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 },
+      })
+    }
+  }
 
   const handleLayoutChange = (layoutName: string, options: any = {}) => {
     if (cy) {
@@ -242,6 +309,37 @@ const GraphControls = ({ cy, onLayoutChange }: GraphControlsProps) => {
 
   return (
     <Paper sx={{ p: 2, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2 }}>
+      {/* Search */}
+      <Box sx={{ minWidth: 220 }}>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+          Search
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+          <TextField
+            size="small"
+            placeholder="Subdomain, IP..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+              },
+            }}
+            sx={{ flex: 1, '& .MuiInputBase-root': { bgcolor: 'background.paper' } }}
+          />
+          <Button size="small" variant="contained" onClick={handleSearch}>
+            Find
+          </Button>
+        </Box>
+      </Box>
+
+      <Divider orientation="vertical" flexItem />
+
       {/* Layout buttons */}
       <Box>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
@@ -265,22 +363,31 @@ const GraphControls = ({ cy, onLayoutChange }: GraphControlsProps) => {
       <Divider orientation="vertical" flexItem />
 
       {/* Zoom controls */}
-      <Box>
+      <Box sx={{ minWidth: 140 }}>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
           Zoom
         </Typography>
-        <ButtonGroup variant="outlined" size="small">
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Tooltip title="Zoom Out">
-            <Button onClick={handleZoomOut}>
+            <Button size="small" onClick={handleZoomOut} sx={{ minWidth: 36 }}>
               <ZoomOutIcon fontSize="small" />
             </Button>
           </Tooltip>
+          <Slider
+            value={zoomValue}
+            min={MIN_ZOOM}
+            max={MAX_ZOOM}
+            step={0.1}
+            onChange={handleZoomSlider}
+            sx={{ width: 80 }}
+            size="small"
+          />
           <Tooltip title="Zoom In">
-            <Button onClick={handleZoomIn}>
+            <Button size="small" onClick={handleZoomIn} sx={{ minWidth: 36 }}>
               <ZoomInIcon fontSize="small" />
             </Button>
           </Tooltip>
-        </ButtonGroup>
+        </Box>
       </Box>
 
       <Divider orientation="vertical" flexItem />
@@ -291,6 +398,13 @@ const GraphControls = ({ cy, onLayoutChange }: GraphControlsProps) => {
           View
         </Typography>
         <ButtonGroup variant="outlined" size="small">
+          {graphWrapperRef && (
+            <Tooltip title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen mode'}>
+              <Button onClick={handleFullscreen}>
+                {isFullscreen ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />}
+              </Button>
+            </Tooltip>
+          )}
           <Tooltip title="Fit to Screen">
             <Button onClick={handleFit}>
               <FitScreenIcon fontSize="small" />

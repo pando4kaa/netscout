@@ -9,6 +9,7 @@ import {
 } from '@mui/material'
 import WarningIcon from '@mui/icons-material/Warning'
 import { Alert, ScanResults } from '../../types'
+import HelpTooltip from '../common/HelpTooltip'
 
 interface AlertsPanelProps {
   scanResults: ScanResults
@@ -40,6 +41,7 @@ const AlertsPanel = ({ scanResults }: AlertsPanelProps) => {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
           <WarningIcon color="warning" />
           <Typography variant="h6">Security Alerts ({alerts.length})</Typography>
+          <HelpTooltip topic="security_alerts" />
         </Box>
         <List dense>
           {alerts.map((alert, idx) => (
@@ -50,6 +52,12 @@ const AlertsPanel = ({ scanResults }: AlertsPanelProps) => {
                   color={levelColor(alert.level) as any}
                   size="small"
                 />
+                {['subdomain_takeover', 'ssl_expired', 'expired_ssl', 'open_port', 'outdated_tech'].includes(alert.type) && (
+                  <HelpTooltip
+                    topic={alert.type === 'expired_ssl' ? 'ssl_expired' : alert.type as 'subdomain_takeover' | 'ssl_expired' | 'open_port' | 'outdated_tech'}
+                    size="small"
+                  />
+                )}
                 {alert.target && (
                   <Typography variant="caption" color="text.secondary">
                     {alert.target}

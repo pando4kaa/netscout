@@ -13,6 +13,7 @@ import {
   Paper,
 } from '@mui/material'
 import { SslInfo } from '../../types'
+import HelpTooltip from '../common/HelpTooltip'
 
 interface SSLInfoPanelProps {
   sslInfo: SslInfo | null | undefined
@@ -36,6 +37,7 @@ const SSLInfoPanel = ({ sslInfo }: SSLInfoPanelProps) => {
           <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             SSL Certificates
             <Chip label={sslInfo.certificates.length} size="small" color="primary" />
+            <HelpTooltip topic="ssl_certificates" />
           </Typography>
           <TableContainer component={Paper} variant="outlined" sx={{ mt: 2 }}>
             <Table size="small">
@@ -54,12 +56,12 @@ const SSLInfoPanel = ({ sslInfo }: SSLInfoPanelProps) => {
                     <TableCell sx={{ fontFamily: 'monospace' }}>{cert.host}</TableCell>
                     <TableCell>
                       {cert.not_before
-                        ? new Date(cert.not_before).toLocaleDateString('uk-UA')
+                        ? new Date(cert.not_before).toLocaleDateString('en-US')
                         : '—'}
                     </TableCell>
                     <TableCell>
                       {cert.not_after
-                        ? new Date(cert.not_after).toLocaleDateString('uk-UA')
+                        ? new Date(cert.not_after).toLocaleDateString('en-US')
                         : '—'}
                     </TableCell>
                     <TableCell>

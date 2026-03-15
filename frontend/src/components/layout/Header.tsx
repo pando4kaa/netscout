@@ -133,7 +133,7 @@ const Header = () => {
               <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleClose}>
                 <MenuItem disabled>{user?.username}</MenuItem>
                 <MenuItem disableRipple>
-                  <ListItemText primary="Email-сповіщення про зміни" secondary="Надсилати на пошту" />
+                  <ListItemText primary="Email notifications for changes" secondary="Send to email" />
                   <Switch
                     checked={user?.email_notifications_enabled ?? false}
                     onChange={handleEmailNotificationsToggle}

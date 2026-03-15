@@ -146,7 +146,7 @@ const HistoryPage = () => {
   const formatDate = (iso: string | null) => {
     if (!iso) return '-'
     try {
-      return new Date(iso).toLocaleString('uk-UA', {
+      return new Date(iso).toLocaleString('en-US', {
         dateStyle: 'medium',
         timeStyle: 'short',
       })

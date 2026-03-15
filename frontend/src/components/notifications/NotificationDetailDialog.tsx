@@ -21,12 +21,16 @@ import {
   TableHead,
   TableContainer,
   CircularProgress,
+  Menu,
+  MenuItem,
 } from '@mui/material'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import DownloadIcon from '@mui/icons-material/Download'
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown'
 import TrendingUpIcon from '@mui/icons-material/TrendingUp'
 import TrendingDownIcon from '@mui/icons-material/TrendingDown'
 import { useState, useEffect } from 'react'
+import { jsPDF } from 'jspdf'
 import { notificationsApi, type Notification, type NotificationReport } from '../../services/api'
 
 interface NotificationDetailDialogProps {
@@ -39,7 +43,7 @@ interface NotificationDetailDialogProps {
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '-'
   try {
-    return new Date(iso).toLocaleString('uk-UA', { dateStyle: 'medium', timeStyle: 'short' })
+    return new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
   } catch {
     return String(iso)
   }
@@ -90,8 +94,374 @@ const NotificationDetailDialog = ({
       .finally(() => setLoading(false))
   }, [open, notification?.id, onReportLoaded])
 
-  const handleExport = () => {
+  const [exportAnchor, setExportAnchor] = useState<null | HTMLElement>(null)
+
+  const handleExportJson = () => {
     if (notification) notificationsApi.exportJson(notification.id)
+    setExportAnchor(null)
+  }
+
+  const buildHumanReadableReport = (): string => {
+    if (!notification || !report || !comp) return ''
+    const lines: string[] = []
+    lines.push('═'.repeat(60))
+    lines.push(`CHANGE REPORT: ${notification.domain}`)
+    lines.push('═'.repeat(60))
+    lines.push('')
+    lines.push(`Event type: ${notification.type}`)
+    lines.push(`Date: ${formatDate(notification.created_at)}`)
+    lines.push(`Title: ${notification.title}`)
+    lines.push(`Message: ${notification.message}`)
+    lines.push('')
+
+    if (comp.scan_1 || comp.scan_2) {
+      lines.push('─'.repeat(60))
+      lines.push('SCAN COMPARISON')
+      lines.push('─'.repeat(60))
+      if (comp.scan_1) {
+        lines.push(`Previous scan: ${formatDate(comp.scan_1.date)} | Risk: ${comp.scan_1.risk_score ?? summary.risk_1}`)
+      }
+      if (comp.scan_2) {
+        lines.push(`Current scan:  ${formatDate(comp.scan_2.date)} | Risk: ${comp.scan_2.risk_score ?? summary.risk_2}`)
+      }
+      lines.push('')
+    }
+
+    lines.push('─'.repeat(60))
+    lines.push('SUMMARY OF CHANGES')
+    lines.push('─'.repeat(60))
+    if (summary.risk_delta !== undefined) {
+      lines.push(`Risk: ${summary.risk_1} → ${summary.risk_2} (${summary.risk_delta >= 0 ? '+' : ''}${summary.risk_delta})`)
+    }
+    lines.push(`Subdomains: +${summary.subdomains_added ?? 0} new, −${summary.subdomains_removed ?? 0} removed`)
+    lines.push(`IP: +${summary.ips_added ?? 0} new, −${summary.ips_removed ?? 0} removed`)
+    lines.push(`Alerts: ${summary.alerts_1 ?? 0} → ${summary.alerts_2 ?? 0}`)
+    lines.push('')
+
+    if (comp.subdomains) {
+      lines.push('─'.repeat(60))
+      lines.push('SUBDOMAINS')
+      lines.push('─'.repeat(60))
+      lines.push(`Removed (${comp.subdomains.only_in_1.length}):`)
+      comp.subdomains.only_in_1.forEach((s) => lines.push(`  • ${s}`))
+      lines.push(`Added (${comp.subdomains.only_in_2.length}):`)
+      comp.subdomains.only_in_2.forEach((s) => lines.push(`  • ${s}`))
+      lines.push(`Unchanged (${comp.subdomains.in_both.length}):`)
+      comp.subdomains.in_both.slice(0, 20).forEach((s) => lines.push(`  • ${s}`))
+      if (comp.subdomains.in_both.length > 20) {
+        lines.push(`  ... and ${comp.subdomains.in_both.length - 20} more`)
+      }
+      lines.push('')
+    }
+
+    if (comp.ips) {
+      lines.push('─'.repeat(60))
+      lines.push('IP ADDRESSES')
+      lines.push('─'.repeat(60))
+      lines.push(`Removed (${comp.ips.only_in_1.length}):`)
+      comp.ips.only_in_1.forEach((ip) => lines.push(`  • ${ip}`))
+      lines.push(`Added (${comp.ips.only_in_2.length}):`)
+      comp.ips.only_in_2.forEach((ip) => lines.push(`  • ${ip}`))
+      lines.push('')
+    }
+
+    if (comp.ssl) {
+      lines.push('─'.repeat(60))
+      lines.push('SSL CERTIFICATES')
+      lines.push('─'.repeat(60))
+      lines.push(`Only in previous (${comp.ssl.hosts_only_in_1.length}):`)
+      comp.ssl.hosts_only_in_1.forEach((h) => lines.push(`  • ${h}`))
+      lines.push(`Only in current (${comp.ssl.hosts_only_in_2.length}):`)
+      comp.ssl.hosts_only_in_2.forEach((h) => lines.push(`  • ${h}`))
+      if (comp.ssl.expired_changes?.length) {
+        lines.push('Validity changes:')
+        comp.ssl.expired_changes.forEach((c) =>
+          lines.push(`  • ${c.host}: ${c.was_expired_1 ? 'Expired' : 'Valid'} → ${c.is_expired_2 ? 'Expired' : 'Valid'}`)
+        )
+      }
+      lines.push('')
+    }
+
+    if (comp.ports && comp.ports.by_ip && Object.keys(comp.ports.by_ip).length > 0) {
+      lines.push('─'.repeat(60))
+      lines.push('PORTS')
+      lines.push('─'.repeat(60))
+      lines.push(`New ports: ${comp.ports.new_ports_count ?? 0} | Closed: ${comp.ports.closed_ports_count ?? 0}`)
+      Object.entries(comp.ports.by_ip).forEach(([ip, diff]) => {
+        lines.push(`  ${ip}: −${diff.only_in_1?.length ?? 0} closed, +${diff.only_in_2?.length ?? 0} new`)
+      })
+      lines.push('')
+    }
+
+    if (comp.alerts) {
+      lines.push('─'.repeat(60))
+      lines.push('ALERTS')
+      lines.push('─'.repeat(60))
+      lines.push(`Resolved (${comp.alerts.only_in_1.length}):`)
+      comp.alerts.only_in_1.forEach((a) => lines.push(`  • [${a.type}] ${a.message}${a.target ? ` (${a.target})` : ''}`))
+      lines.push(`New (${comp.alerts.only_in_2.length}):`)
+      comp.alerts.only_in_2.forEach((a) => lines.push(`  • [${a.type}] ${a.message}${a.target ? ` (${a.target})` : ''}`))
+    }
+
+    lines.push('')
+    lines.push('═'.repeat(60))
+    lines.push(`Report generated by NetScout • ${new Date().toLocaleString('en-US')}`)
+    return lines.join('\n')
+  }
+
+  const handleExportTxt = () => {
+    const text = buildHumanReadableReport()
+    if (!text) return
+    const BOM = '\uFEFF'
+    const blob = new Blob([BOM + text], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `report_${notification?.domain}_${new Date().toISOString().slice(0, 10)}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+    setExportAnchor(null)
+  }
+
+  const buildPdfReport = async () => {
+    if (!notification || !report || !comp) return
+    await document.fonts.ready
+
+    const pageWidthPx = 1240
+    const pageHeightPx = 1754
+    const marginX = 76
+    const marginTop = 84
+    const marginBottom = 72
+    const contentWidth = pageWidthPx - marginX * 2
+    const contentBottom = pageHeightPx - marginBottom
+
+    const createCanvas = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = pageWidthPx
+      canvas.height = pageHeightPx
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return null
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, pageWidthPx, pageHeightPx)
+      return { canvas, ctx }
+    }
+
+    const state = createCanvas()
+    if (!state) return
+    let { canvas, ctx } = state
+    let cursorY = marginTop
+    let pageNo = 1
+    const pages: string[] = []
+
+    const setFont = (size: number, weight: 400 | 600 | 700 = 400) => {
+      ctx.font = `${weight} ${size}px "Montserrat", "Segoe UI", Arial, sans-serif`
+      ctx.fillStyle = '#1f2937'
+    }
+
+    const wrapText = (text: string, maxWidth: number) => {
+      if (!text.trim()) return ['']
+      const words = text.split(/\s+/)
+      const wrapped: string[] = []
+      let line = ''
+
+      for (const word of words) {
+        const candidate = line ? `${line} ${word}` : word
+        if (ctx.measureText(candidate).width <= maxWidth) {
+          line = candidate
+          continue
+        }
+        if (line) wrapped.push(line)
+        line = word
+
+        while (ctx.measureText(line).width > maxWidth && line.length > 1) {
+          let splitAt = line.length - 1
+          while (splitAt > 1 && ctx.measureText(line.slice(0, splitAt)).width > maxWidth) splitAt -= 1
+          wrapped.push(line.slice(0, splitAt))
+          line = line.slice(splitAt)
+        }
+      }
+      if (line) wrapped.push(line)
+      return wrapped
+    }
+
+    const drawFooter = () => {
+      ctx.strokeStyle = '#e5e7eb'
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.moveTo(marginX, pageHeightPx - 50)
+      ctx.lineTo(pageWidthPx - marginX, pageHeightPx - 50)
+      ctx.stroke()
+      setFont(14, 400)
+      ctx.fillStyle = '#6b7280'
+      ctx.fillText(`NetScout Report`, marginX, pageHeightPx - 24)
+      const pageLabel = `Page ${pageNo}`
+      const labelWidth = ctx.measureText(pageLabel).width
+      ctx.fillText(pageLabel, pageWidthPx - marginX - labelWidth, pageHeightPx - 24)
+    }
+
+    const pushPage = () => {
+      drawFooter()
+      pages.push(canvas.toDataURL('image/png'))
+      const next = createCanvas()
+      if (!next) return false
+      canvas = next.canvas
+      ctx = next.ctx
+      cursorY = marginTop
+      pageNo += 1
+      return true
+    }
+
+    const ensureSpace = (requiredHeight: number) => {
+      if (cursorY + requiredHeight <= contentBottom) return true
+      return pushPage()
+    }
+
+    const drawParagraph = (text: string, opts?: { size?: number; weight?: 400 | 600 | 700; color?: string; indent?: number; gap?: number }) => {
+      const size = opts?.size ?? 25
+      const weight = opts?.weight ?? 400
+      const indent = opts?.indent ?? 0
+      const gap = opts?.gap ?? 14
+      setFont(size, weight)
+      if (opts?.color) ctx.fillStyle = opts.color
+      const lines = wrapText(text, contentWidth - indent)
+      if (!ensureSpace(lines.length * (size + 14) + gap)) return
+      for (const line of lines) {
+        ctx.fillText(line, marginX + indent, cursorY)
+        cursorY += size + 14
+      }
+      cursorY += gap
+    }
+
+    const drawSection = (title: string) => {
+      if (!ensureSpace(90)) return
+      cursorY += 4
+      setFont(30, 700)
+      ctx.fillStyle = '#111827'
+      ctx.fillText(title, marginX, cursorY)
+      cursorY += 20
+      ctx.fillStyle = '#2563eb'
+      ctx.fillRect(marginX, cursorY, 120, 5)
+      cursorY += 32
+    }
+
+    const buildNarrative = () => {
+      const narrative: string[] = []
+      const riskDelta = summary.risk_delta ?? 0
+      if (riskDelta > 0) narrative.push(`Risk score increased by ${riskDelta}. Attack surface has widened.`)
+      if (riskDelta < 0) narrative.push(`Risk score decreased by ${Math.abs(riskDelta)}. Overall security improved.`)
+      if (riskDelta === 0) narrative.push('Risk score unchanged compared to the previous scan.')
+
+      if ((summary.subdomains_added ?? 0) > 0 || (summary.subdomains_removed ?? 0) > 0) {
+        narrative.push(
+          `Subdomains: ${summary.subdomains_added ?? 0} added, ${summary.subdomains_removed ?? 0} removed.`
+        )
+      }
+      if ((summary.ips_added ?? 0) > 0 || (summary.ips_removed ?? 0) > 0) {
+        narrative.push(`IP addresses: ${summary.ips_added ?? 0} added, ${summary.ips_removed ?? 0} removed.`)
+      }
+      if ((summary.alerts_2 ?? 0) !== (summary.alerts_1 ?? 0)) {
+        narrative.push(`Alert count changed: ${summary.alerts_1 ?? 0} -> ${summary.alerts_2 ?? 0}.`)
+      }
+      if ((comp.ssl?.expired_changes?.length ?? 0) > 0) {
+        narrative.push(`Found ${comp.ssl?.expired_changes?.length ?? 0} SSL certificate status changes.`)
+      }
+      if ((comp.ports?.new_ports_count ?? 0) > 0 || (comp.ports?.closed_ports_count ?? 0) > 0) {
+        narrative.push(
+          `Ports: ${comp.ports?.new_ports_count ?? 0} newly opened, ${comp.ports?.closed_ports_count ?? 0} closed.`
+        )
+      }
+
+      return narrative
+    }
+
+    drawParagraph(`Change Report: ${notification.domain}`, { size: 42, weight: 700, gap: 6 })
+    drawParagraph(`${notification.title}`, { size: 26, weight: 600, color: '#374151', gap: 10 })
+    drawParagraph(`Date: ${formatDate(notification.created_at)}  •  Event type: ${notification.type}`, {
+      size: 20,
+      color: '#6b7280',
+      gap: 28,
+    })
+
+    drawSection('What Changed')
+    const narrative = buildNarrative()
+    if (narrative.length === 0) {
+      drawParagraph('No significant changes detected between scans.', { size: 20, color: '#4b5563' })
+    } else {
+      narrative.forEach((line) => drawParagraph(`• ${line}`, { size: 21, indent: 4, gap: 6 }))
+      cursorY += 14
+    }
+
+    drawSection('Key Metrics')
+    drawParagraph(`Risk: ${summary.risk_1 ?? 0} -> ${summary.risk_2 ?? 0} (${summary.risk_delta ?? 0})`, {
+      size: 22,
+      weight: 600,
+      color: '#1d4ed8',
+      gap: 8,
+    })
+    drawParagraph(`Subdomains: +${summary.subdomains_added ?? 0}, -${summary.subdomains_removed ?? 0}`, { size: 21, gap: 6 })
+    drawParagraph(`IP: +${summary.ips_added ?? 0}, -${summary.ips_removed ?? 0}`, { size: 21, gap: 6 })
+    drawParagraph(`Alerts: ${summary.alerts_1 ?? 0} -> ${summary.alerts_2 ?? 0}`, { size: 21, gap: 20 })
+
+    const drawListSection = (title: string, lines: string[]) => {
+      if (lines.length === 0) return
+      drawSection(title)
+      lines.forEach((line) => drawParagraph(line, { size: 20, gap: 6 }))
+      cursorY += 14
+    }
+
+    drawListSection('Subdomains', [
+      `Removed: ${comp.subdomains?.only_in_1.length ?? 0}`,
+      ...(comp.subdomains?.only_in_1 ?? []).slice(0, 10).map((v) => `• ${v}`),
+      `Added: ${comp.subdomains?.only_in_2.length ?? 0}`,
+      ...(comp.subdomains?.only_in_2 ?? []).slice(0, 10).map((v) => `• ${v}`),
+    ])
+
+    drawListSection('IP Addresses', [
+      `Removed: ${comp.ips?.only_in_1.length ?? 0}`,
+      ...(comp.ips?.only_in_1 ?? []).slice(0, 10).map((v) => `• ${v}`),
+      `Added: ${comp.ips?.only_in_2.length ?? 0}`,
+      ...(comp.ips?.only_in_2 ?? []).slice(0, 10).map((v) => `• ${v}`),
+    ])
+
+    drawListSection('SSL', [
+      `Only in previous: ${comp.ssl?.hosts_only_in_1.length ?? 0}`,
+      ...(comp.ssl?.hosts_only_in_1 ?? []).slice(0, 8).map((v) => `• ${v}`),
+      `Only in current: ${comp.ssl?.hosts_only_in_2.length ?? 0}`,
+      ...(comp.ssl?.hosts_only_in_2 ?? []).slice(0, 8).map((v) => `• ${v}`),
+      ...((comp.ssl?.expired_changes ?? []).slice(0, 8).map(
+        (c) => `• ${c.host}: ${c.was_expired_1 ? 'expired' : 'valid'} -> ${c.is_expired_2 ? 'expired' : 'valid'}`
+      )),
+    ])
+
+    drawListSection('Ports', [
+      `New ports: ${comp.ports?.new_ports_count ?? 0}`,
+      `Closed ports: ${comp.ports?.closed_ports_count ?? 0}`,
+      ...Object.entries(comp.ports?.by_ip ?? {})
+        .slice(0, 10)
+        .map(([ip, diff]) => `• ${ip}: -${diff.only_in_1.length}, +${diff.only_in_2.length}`),
+    ])
+
+    drawListSection('Alerts', [
+      `Resolved: ${comp.alerts?.only_in_1.length ?? 0}`,
+      ...(comp.alerts?.only_in_1 ?? []).slice(0, 8).map((a) => `• [${a.type ?? '-'}] ${a.message ?? '-'}`),
+      `New: ${comp.alerts?.only_in_2.length ?? 0}`,
+      ...(comp.alerts?.only_in_2 ?? []).slice(0, 8).map((a) => `• [${a.type ?? '-'}] ${a.message ?? '-'}`),
+    ])
+
+    drawFooter()
+    pages.push(canvas.toDataURL('image/png'))
+
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+    pages.forEach((img, idx) => {
+      if (idx > 0) doc.addPage('a4', 'portrait')
+      doc.addImage(img, 'PNG', 0, 0, 210, 297)
+    })
+    doc.save(`report_${notification.domain}_${new Date().toISOString().slice(0, 10)}.pdf`)
+  }
+
+  const handleExportPdf = () => {
+    void buildPdfReport()
+    setExportAnchor(null)
   }
 
   if (!notification) return null
@@ -163,7 +533,7 @@ const NotificationDetailDialog = ({
                 <Grid item xs={6}>
                   <Paper variant="outlined" sx={{ p: 2 }}>
                     <Typography variant="subtitle2" color="primary">
-                      Попередній скан
+                      Previous scan
                     </Typography>
                     <Typography variant="body2">{formatDate(comp.scan_1.date)}</Typography>
                     <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
@@ -176,7 +546,7 @@ const NotificationDetailDialog = ({
                 <Grid item xs={6}>
                   <Paper variant="outlined" sx={{ p: 2 }}>
                     <Typography variant="subtitle2" color="secondary">
-                      Поточний скан
+                      Current scan
                     </Typography>
                     <Typography variant="body2">{formatDate(comp.scan_2.date)}</Typography>
                     <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
@@ -189,7 +559,7 @@ const NotificationDetailDialog = ({
 
             <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
               <Typography variant="subtitle2" gutterBottom>
-                Підсумок змін
+                Summary of changes
               </Typography>
               <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                 {summary.risk_delta !== undefined && (
@@ -210,41 +580,41 @@ const NotificationDetailDialog = ({
                 )}
                 <Chip
                   size="small"
-                  label={`Піддомени: +${summary.subdomains_added ?? 0} нових, −${summary.subdomains_removed ?? 0} видалено`}
+                  label={`Subdomains: +${summary.subdomains_added ?? 0} new, −${summary.subdomains_removed ?? 0} removed`}
                 />
                 <Chip
                   size="small"
-                  label={`IP: +${summary.ips_added ?? 0} нових, −${summary.ips_removed ?? 0} видалено`}
+                  label={`IP: +${summary.ips_added ?? 0} new, −${summary.ips_removed ?? 0} removed`}
                 />
-                <Chip size="small" label={`Алерти: ${summary.alerts_1 ?? 0} → ${summary.alerts_2 ?? 0}`} />
+                <Chip size="small" label={`Alerts: ${summary.alerts_1 ?? 0} → ${summary.alerts_2 ?? 0}`} />
               </Box>
             </Paper>
 
             <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-              <Tab label="Піддомени" />
+              <Tab label="Subdomains" />
               <Tab label="IP" />
               <Tab label="SSL" />
-              <Tab label="Порти" />
-              <Tab label="Алерти" />
+              <Tab label="Ports" />
+              <Tab label="Alerts" />
             </Tabs>
 
             {tab === 0 && comp.subdomains && (
               <Grid container spacing={2}>
                 <Grid item xs={4}>
                   <Typography variant="body2" color="primary" gutterBottom>
-                    Видалено ({comp.subdomains.only_in_1.length})
+                    Removed ({comp.subdomains.only_in_1.length})
                   </Typography>
                   <ListBlock items={comp.subdomains.only_in_1} />
                 </Grid>
                 <Grid item xs={4}>
                   <Typography variant="body2" color="secondary" gutterBottom>
-                    Додано ({comp.subdomains.only_in_2.length})
+                    Added ({comp.subdomains.only_in_2.length})
                   </Typography>
                   <ListBlock items={comp.subdomains.only_in_2} />
                 </Grid>
                 <Grid item xs={4}>
                   <Typography variant="body2" color="text.secondary" gutterBottom>
-                    Без змін ({comp.subdomains.in_both.length})
+                    Unchanged ({comp.subdomains.in_both.length})
                   </Typography>
                   <ListBlock items={comp.subdomains.in_both} />
                 </Grid>
@@ -255,19 +625,19 @@ const NotificationDetailDialog = ({
               <Grid container spacing={2}>
                 <Grid item xs={4}>
                   <Typography variant="body2" color="primary" gutterBottom>
-                    Видалено ({comp.ips.only_in_1.length})
+                    Removed ({comp.ips.only_in_1.length})
                   </Typography>
                   <ListBlock items={comp.ips.only_in_1} />
                 </Grid>
                 <Grid item xs={4}>
                   <Typography variant="body2" color="secondary" gutterBottom>
-                    Додано ({comp.ips.only_in_2.length})
+                    Added ({comp.ips.only_in_2.length})
                   </Typography>
                   <ListBlock items={comp.ips.only_in_2} />
                 </Grid>
                 <Grid item xs={4}>
                   <Typography variant="body2" color="text.secondary" gutterBottom>
-                    Без змін ({comp.ips.in_both.length})
+                    Unchanged ({comp.ips.in_both.length})
                   </Typography>
                   <ListBlock items={comp.ips.in_both} />
                 </Grid>
@@ -279,19 +649,19 @@ const NotificationDetailDialog = ({
                 <Grid container spacing={2} sx={{ mb: 2 }}>
                   <Grid item xs={4}>
                     <Typography variant="body2" color="primary" gutterBottom>
-                      Тільки в попередньому ({comp.ssl.hosts_only_in_1.length})
+                      Only in previous ({comp.ssl.hosts_only_in_1.length})
                     </Typography>
                     <ListBlock items={comp.ssl.hosts_only_in_1} />
                   </Grid>
                   <Grid item xs={4}>
                     <Typography variant="body2" color="secondary" gutterBottom>
-                      Тільки в поточному ({comp.ssl.hosts_only_in_2.length})
+                      Only in current ({comp.ssl.hosts_only_in_2.length})
                     </Typography>
                     <ListBlock items={comp.ssl.hosts_only_in_2} />
                   </Grid>
                   <Grid item xs={4}>
                     <Typography variant="body2" color="text.secondary" gutterBottom>
-                      В обох ({comp.ssl.hosts_in_both.length})
+                      In both ({comp.ssl.hosts_in_both.length})
                     </Typography>
                     <ListBlock items={comp.ssl.hosts_in_both} />
                   </Grid>
@@ -300,7 +670,7 @@ const NotificationDetailDialog = ({
                   <Accordion>
                     <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                       <Typography variant="body2">
-                        Зміни терміну дії сертифікатів ({comp.ssl.expired_changes.length})
+                        Certificate validity changes ({comp.ssl.expired_changes.length})
                       </Typography>
                     </AccordionSummary>
                     <AccordionDetails>
@@ -309,16 +679,16 @@ const NotificationDetailDialog = ({
                           <TableHead>
                             <TableRow>
                               <TableCell>Host</TableCell>
-                              <TableCell>Попередній</TableCell>
-                              <TableCell>Поточний</TableCell>
+                              <TableCell>Previous</TableCell>
+                              <TableCell>Current</TableCell>
                             </TableRow>
                           </TableHead>
                           <TableBody>
                             {comp.ssl.expired_changes.map((c, i) => (
                               <TableRow key={i}>
                                 <TableCell sx={{ fontFamily: 'monospace' }}>{c.host}</TableCell>
-                                <TableCell>{c.was_expired_1 ? 'Прострочено' : 'Валідний'}</TableCell>
-                                <TableCell>{c.is_expired_2 ? 'Прострочено' : 'Валідний'}</TableCell>
+                                <TableCell>{c.was_expired_1 ? 'Expired' : 'Valid'}</TableCell>
+                                <TableCell>{c.is_expired_2 ? 'Expired' : 'Valid'}</TableCell>
                               </TableRow>
                             ))}
                           </TableBody>
@@ -333,7 +703,7 @@ const NotificationDetailDialog = ({
             {tab === 3 && comp.ports && (
               <Box>
                 <Typography variant="body2" gutterBottom>
-                  Нові порти: {comp.ports.new_ports_count} | Закрито: {comp.ports.closed_ports_count}
+                  New ports: {comp.ports.new_ports_count} | Closed: {comp.ports.closed_ports_count}
                 </Typography>
                 {comp.ports.by_ip && Object.keys(comp.ports.by_ip).length > 0 ? (
                   Object.entries(comp.ports.by_ip).map(([ip, diff]) => (
@@ -349,19 +719,19 @@ const NotificationDetailDialog = ({
                         <Grid container spacing={2}>
                           <Grid item xs={4}>
                             <Typography variant="caption" color="error">
-                              Закрито
+                              Closed
                             </Typography>
                             <ListBlock items={diff.only_in_1} />
                           </Grid>
                           <Grid item xs={4}>
                             <Typography variant="caption" color="success.main">
-                              Нові
+                              New
                             </Typography>
                             <ListBlock items={diff.only_in_2} />
                           </Grid>
                           <Grid item xs={4}>
                             <Typography variant="caption" color="text.secondary">
-                              Без змін
+                              Unchanged
                             </Typography>
                             <ListBlock items={diff.in_both} />
                           </Grid>
@@ -370,7 +740,7 @@ const NotificationDetailDialog = ({
                     </Accordion>
                   ))
                 ) : (
-                  <Typography color="text.secondary">Немає змін портів</Typography>
+                  <Typography color="text.secondary">No port changes</Typography>
                 )}
               </Box>
             )}
@@ -379,7 +749,7 @@ const NotificationDetailDialog = ({
               <Grid container spacing={2}>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="primary" gutterBottom>
-                    Вирішено ({comp.alerts.only_in_1.length})
+                    Resolved ({comp.alerts.only_in_1.length})
                   </Typography>
                   <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
                     {comp.alerts.only_in_1.map((a, i) => (
@@ -399,7 +769,7 @@ const NotificationDetailDialog = ({
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="secondary" gutterBottom>
-                    Нові ({comp.alerts.only_in_2.length})
+                    New ({comp.alerts.only_in_2.length})
                   </Typography>
                   <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
                     {comp.alerts.only_in_2.map((a, i) => (
@@ -423,16 +793,33 @@ const NotificationDetailDialog = ({
         ) : (
           !loading && (
             <Typography color="text.secondary">
-              Не вдалося завантажити звіт порівняння. Можливо, дані сканів вже видалено.
+              Failed to load comparison report. Scan data may have been deleted.
             </Typography>
           )
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Закрити</Button>
-        <Button variant="contained" startIcon={<DownloadIcon />} onClick={handleExport} disabled={!notification}>
-          Експорт звіту (JSON)
+        <Button onClick={onClose}>Close</Button>
+        <Button
+          variant="contained"
+          startIcon={<DownloadIcon />}
+          endIcon={<KeyboardArrowDownIcon />}
+          onClick={(e) => setExportAnchor(e.currentTarget)}
+          disabled={!notification || !report}
+        >
+          Export report
         </Button>
+        <Menu
+          anchorEl={exportAnchor}
+          open={Boolean(exportAnchor)}
+          onClose={() => setExportAnchor(null)}
+          anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        >
+          <MenuItem onClick={handleExportJson}>JSON (for programs)</MenuItem>
+          <MenuItem onClick={handleExportTxt}>Text report (TXT)</MenuItem>
+          <MenuItem onClick={handleExportPdf}>PDF</MenuItem>
+        </Menu>
       </DialogActions>
     </Dialog>
   )

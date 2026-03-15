@@ -29,7 +29,7 @@ const severityColors: Record<string, 'default' | 'warning' | 'error'> = {
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '-'
   try {
-    return new Date(iso).toLocaleString('uk-UA', { dateStyle: 'medium', timeStyle: 'short' })
+    return new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
   } catch {
     return String(iso)
   }
@@ -62,8 +62,8 @@ const NotificationsPage = () => {
     } catch (e: unknown) {
       const msg = e && typeof e === 'object' && 'response' in e
         ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
-        : e instanceof Error ? e.message : 'Помилка завантаження'
-      setError(typeof msg === 'string' ? msg : 'Помилка завантаження')
+        : e instanceof Error ? e.message : 'Failed to load'
+      setError(typeof msg === 'string' ? msg : 'Failed to load')
     } finally {
       setLoading(false)
     }
@@ -118,10 +118,10 @@ const NotificationsPage = () => {
     return (
       <Box sx={{ textAlign: 'center', py: 6 }}>
         <Typography variant="h6" gutterBottom>
-          Увійдіть для перегляду сповіщень
+          Sign in to view notifications
         </Typography>
         <Button component={Link} to="/login" variant="contained">
-          Увійти
+          Sign in
         </Button>
       </Box>
     )
@@ -133,15 +133,15 @@ const NotificationsPage = () => {
         <NotificationsActiveIcon sx={{ fontSize: 36, color: 'primary.main' }} />
         <Box sx={{ flex: 1 }}>
           <Typography variant="h4" fontWeight={600}>
-            Сповіщення
+            Notifications
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Зміни на доменах після порівняння з попереднім сканом
+            Domain changes after comparison with previous scan
           </Typography>
         </Box>
         {unreadCount > 0 && (
           <Button variant="outlined" onClick={handleMarkAllRead} size="small">
-            Позначити всі прочитаними ({unreadCount})
+            Mark all as read ({unreadCount})
           </Button>
         )}
       </Box>
@@ -149,7 +149,7 @@ const NotificationsPage = () => {
       <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
         <TextField
           size="small"
-          placeholder="Фільтр по домену"
+          placeholder="Filter by domain"
           value={domainFilter}
           onChange={(e) => setDomainFilter(e.target.value)}
           InputProps={{
@@ -166,7 +166,7 @@ const NotificationsPage = () => {
           size="small"
           onClick={() => setUnreadOnly(!unreadOnly)}
         >
-          Тільки непрочитані
+          Unread only
         </Button>
       </Box>
 
@@ -177,7 +177,7 @@ const NotificationsPage = () => {
       )}
       {unsubscribed && (
         <Alert severity="info" sx={{ mb: 2 }} onClose={() => setUnsubscribed(false)}>
-          Email-сповіщення вимкнено.
+          Email notifications disabled.
         </Alert>
       )}
 
@@ -188,9 +188,9 @@ const NotificationsPage = () => {
           </Box>
         ) : notifications.length === 0 ? (
           <Box sx={{ py: 6, textAlign: 'center', color: 'text.secondary' }}>
-            <Typography>Немає сповіщень</Typography>
+            <Typography>No notifications</Typography>
             <Typography variant="body2" sx={{ mt: 1 }}>
-              Сповіщення з'являться після порівняння нового скану з попереднім для того ж домену
+              Notifications will appear after comparing a new scan with the previous one for the same domain
             </Typography>
           </Box>
         ) : (
@@ -213,7 +213,7 @@ const NotificationsPage = () => {
                       </Typography>
                       <Chip label={n.type} size="small" color={severityColors[n.severity] || 'default'} />
                       {!n.read_at && (
-                        <Chip label="Нове" size="small" color="primary" sx={{ height: 20 }} />
+                        <Chip label="New" size="small" color="primary" sx={{ height: 20 }} />
                       )}
                     </Box>
                   }

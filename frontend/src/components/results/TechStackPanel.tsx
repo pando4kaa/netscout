@@ -4,13 +4,14 @@ import {
   CardContent,
   Typography,
   Chip,
+  Paper,
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Paper,
 } from '@mui/material'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import { ScanResults } from '../../types'
+import HelpTooltip from '../common/HelpTooltip'
 
 interface TechStackPanelProps {
   techStack: ScanResults['tech_stack']
@@ -31,6 +32,10 @@ const TechStackPanel = ({ techStack }: TechStackPanelProps) => {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+        <Typography variant="h6">Technology Stack</Typography>
+        <HelpTooltip topic="tech_stack" />
+      </Box>
       {entries.map(([url, data]: [string, any]) => (
         <Accordion key={url}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>

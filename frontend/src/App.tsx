@@ -3,6 +3,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
 import { AuthProvider } from './contexts/AuthContext'
 import Layout from './components/layout/Layout'
+import { ErrorBoundary } from './components/common/ErrorBoundary'
 import HomePage from './pages/HomePage'
 import ScanPage from './pages/ScanPage'
 import HistoryPage from './pages/HistoryPage'
@@ -98,7 +99,8 @@ function App() {
       <AuthProvider>
         <Router>
           <Layout>
-            <Routes>
+            <ErrorBoundary>
+              <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/scan" element={<ScanPage />} />
               <Route path="/history" element={<HistoryPage />} />
@@ -109,7 +111,8 @@ function App() {
               <Route path="/investigations/:id" element={<InvestigationDetailPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
-            </Routes>
+              </Routes>
+            </ErrorBoundary>
           </Layout>
         </Router>
       </AuthProvider>

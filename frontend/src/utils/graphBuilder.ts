@@ -18,16 +18,18 @@ export const buildGraphElements = (scanData: ScanResults): GraphElements => {
   const edges: any[] = []
   const addedNodes = new Set<string>()
 
-  if (!scanData) {
+  if (!scanData || !scanData.target_domain) {
     return { nodes, edges }
   }
 
-  // Add main domain node
+  // Add main domain node with subdomain count badge
   const domainId = `domain_${scanData.target_domain}`
+  const subdomainCount = scanData.subdomains?.length ?? 0
   nodes.push({
     data: {
       id: domainId,
-      label: scanData.target_domain,
+      label: subdomainCount > 0 ? `${scanData.target_domain} (${subdomainCount})` : scanData.target_domain,
+      subdomainCount,
       type: NODE_TYPES.domain,
     },
   })
@@ -192,6 +194,7 @@ export const buildGraphElements = (scanData: ScanResults): GraphElements => {
             type: NODE_TYPES.certificate,
             is_expired: cert.is_expired,
           },
+          classes: cert.is_expired ? 'risk-expired' : '',
         })
         addedNodes.add(certNodeId)
         const subdomainId = `subdomain_${cert.host}`
