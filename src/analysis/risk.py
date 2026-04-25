@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from src.core.models import Alert, RiskLevel, DNSInfo, SslInfo, PortScanResult, OpenPort
 from src.config.settings import HTTP_TIMEOUT, USER_AGENT
+from src.analysis.asset_weight import asset_weight, classify_asset, normalize_asset_host
+from src.integrations.nvd_client import search_cves
 
 # Known vulnerable versions: (software, version) -> CVE or description
 OUTDATED_VERSIONS: List[Tuple[str, str, str]] = [
@@ -179,13 +181,24 @@ def detect_outdated_tech(tech_stack: Optional[Dict[str, Any]]) -> List[Alert]:
         software, version = parsed
         for out_soft, out_ver, desc in OUTDATED_VERSIONS:
             if out_soft in software and version.strip() == out_ver:
+                nvd = search_cves(software, version)
+                details = {"server": server, "software": software, "version": version}
+                if nvd.get("enabled"):
+                    details.update(
+                        {
+                            "nvd_enabled": True,
+                            "cves": nvd.get("cves") or [],
+                            "cvss_max": nvd.get("cvss_max"),
+                            "nvd_error": nvd.get("error"),
+                        }
+                    )
                 alerts.append(
                     Alert(
                         type="outdated_tech",
                         level=RiskLevel.MEDIUM,
                         message=f"Outdated {software} {version} on {url}: {desc}",
                         target=url,
-                        details={"server": server, "software": software, "version": version},
+                        details=details,
                     )
                 )
                 break
@@ -360,6 +373,80 @@ def compute_risk_score(alerts: List[Alert]) -> int:
     return sum(RISK_WEIGHTS.get(a.level, 1) for a in alerts)
 
 
+def _severity_score(alert: Alert) -> Tuple[float, str]:
+    """Return technical severity S_i using CVSS when available, otherwise legacy weights."""
+    details = alert.details or {}
+    cvss = details.get("cvss_max")
+    if isinstance(cvss, (int, float)):
+        return float(cvss), "cvss"
+    return float(RISK_WEIGHTS.get(alert.level, 1)), "legacy"
+
+
+def _likelihood(alert: Alert) -> float:
+    """
+    Estimate exploitation likelihood L_i on a 0..1 scale.
+
+    This is an OWASP-inspired heuristic: active, externally reachable findings
+    receive higher likelihood than passive configuration or reputation signals.
+    """
+    likelihood_by_type = {
+        "open_port": 0.9,
+        "expired_ssl": 0.75,
+        "weak_tls": 0.75,
+        "outdated_tech": 0.8,
+        "subdomain_takeover": 0.7,
+        "missing_dmarc": 0.6,
+        "missing_security_headers": 0.5,
+        "abuseipdb": 0.65,
+        "criminalip": 0.65,
+        "pulsedive": 0.65,
+        "phishtank": 0.85,
+    }
+    return likelihood_by_type.get(alert.type, 0.6)
+
+
+def compute_risk_composite(alerts: List[Alert], apex_domain: str) -> Tuple[float, List[Dict[str, Any]]]:
+    """
+    Compute composite risk score: R = sum(S_i * w_i * L_i).
+
+    S_i is technical severity (CVSS when available, otherwise legacy score),
+    w_i is asset criticality, and L_i is exploitation likelihood.
+    """
+    breakdown: List[Dict[str, Any]] = []
+    total = 0.0
+
+    for alert in alerts:
+        target = normalize_asset_host(alert.target or apex_domain)
+        if not target:
+            target = apex_domain
+        severity, severity_source = _severity_score(alert)
+        weight = asset_weight(target, apex_domain)
+        likelihood = _likelihood(alert)
+        contribution = round(severity * weight * likelihood, 2)
+        total += contribution
+
+        details = alert.details or {}
+        cves = details.get("cves") if isinstance(details.get("cves"), list) else []
+        breakdown.append(
+            {
+                "type": alert.type,
+                "message": alert.message,
+                "target": alert.target,
+                "level": alert.level.value if hasattr(alert.level, "value") else str(alert.level),
+                "severity_score": round(severity, 2),
+                "severity_source": severity_source,
+                "asset_weight": round(weight, 2),
+                "likelihood": round(likelihood, 2),
+                "contribution": contribution,
+                "asset_class": classify_asset(target, apex_domain),
+                "cves": cves,
+            }
+        )
+
+    breakdown.sort(key=lambda item: item["contribution"], reverse=True)
+    return round(total, 2), breakdown
+
+
 def run_risk_analysis(
     dns_info: Optional[DNSInfo],
     ssl_info: Optional[SslInfo],
@@ -367,8 +454,9 @@ def run_risk_analysis(
     subdomains: List[str],
     tech_stack: Optional[Dict[str, Any]] = None,
     external_apis: Optional[Dict[str, Any]] = None,
-) -> Tuple[List[Alert], int]:
-    """Run all risk checks and return (alerts, risk_score)."""
+    apex_domain: str = "",
+) -> Tuple[List[Alert], int, float, List[Dict[str, Any]]]:
+    """Run all risk checks and return alerts plus legacy and composite scores."""
     alerts: List[Alert] = []
     alerts.extend(detect_subdomain_takeover(subdomains, dns_info))
     alerts.extend(detect_dmarc_risks(dns_info))
@@ -382,4 +470,8 @@ def run_risk_analysis(
     alerts.extend(detect_pulsedive_risks(external_apis))
     alerts.extend(detect_criminalip_risks(external_apis))
     score = compute_risk_score(alerts)
-    return alerts, score
+    composite, breakdown = compute_risk_composite(
+        alerts,
+        apex_domain or (getattr(dns_info, "domain", "") if dns_info else ""),
+    )
+    return alerts, score, composite, breakdown

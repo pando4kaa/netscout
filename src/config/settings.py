@@ -40,6 +40,7 @@ ZOOMEYE_API_KEY = os.getenv("ZOOMEYE_API_KEY", "")
 PHISHTANK_APP_KEY = os.getenv("PHISHTANK_APP_KEY", "")
 CRIMINALIP_API_KEY = os.getenv("CRIMINALIP_API_KEY", "")
 PULSEDIVE_API_KEY = os.getenv("PULSEDIVE_API_KEY", "")
+NVD_API_KEY = os.getenv("NVD_API_KEY", "")
 # Censys: Platform API (Personal Access Token) or Legacy (API ID + Secret)
 # New: CENSYS_API_TOKEN from https://accounts.censys.io/settings/personal-access-tokens
 # Legacy: CENSYS_API_ID + CENSYS_API_SECRET from https://search.censys.io/account

@@ -20,7 +20,8 @@ interface OverviewPanelProps {
 }
 
 const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
-  const { dns_info = {}, whois_info = {}, subdomains = [], target_domain, scan_date } = scanResults
+  const { dns_info = {}, whois_info = {}, subdomains = [], target_domain } = scanResults
+  const riskBreakdown = scanResults.summary?.risk_breakdown || []
 
   // Calculate statistics
   const totalDnsRecords =
@@ -114,27 +115,71 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
       </Grid>
 
       {/* Risk Score */}
-      {(scanResults.summary?.risk_score ?? 0) > 0 && (
+      {((scanResults.summary?.risk_score ?? 0) > 0 || (scanResults.summary?.risk_composite ?? 0) > 0) && (
         <Paper
           elevation={0}
           sx={{
             p: 2,
-            bgcolor: (scanResults.summary?.risk_score ?? 0) >= 20 ? '#ffebee' : '#fff8e1',
+            bgcolor: (scanResults.summary?.risk_composite ?? scanResults.summary?.risk_score ?? 0) >= 20 ? '#ffebee' : '#fff8e1',
             borderRadius: 2,
             borderLeft: 4,
-            borderLeftColor: (scanResults.summary?.risk_score ?? 0) >= 20 ? 'error.main' : 'warning.main',
+            borderLeftColor: (scanResults.summary?.risk_composite ?? scanResults.summary?.risk_score ?? 0) >= 20 ? 'error.main' : 'warning.main',
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography variant="subtitle2" color="text.secondary">Risk Score</Typography>
             <HelpTooltip topic="risk_score" />
           </Box>
-          <Typography variant="h4" sx={{ fontWeight: 700, mt: 0.5 }}>
-            {scanResults.summary?.risk_score ?? 0}
-            <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-              (HIGH=10, MEDIUM=5, LOW=1)
-            </Typography>
-          </Typography>
+          <Grid container spacing={2} sx={{ mt: 0.5 }}>
+            <Grid item xs={12} sm={4}>
+              <Typography variant="caption" color="text.secondary">Legacy</Typography>
+              <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                {scanResults.summary?.risk_score ?? 0}
+              </Typography>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Typography variant="caption" color="text.secondary">Composite</Typography>
+              <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                {(scanResults.summary?.risk_composite ?? 0).toFixed(2)}
+              </Typography>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Typography variant="caption" color="text.secondary">Formula</Typography>
+              <Typography variant="body2" sx={{ mt: 0.75 }}>
+                S × w × L
+              </Typography>
+            </Grid>
+          </Grid>
+          {riskBreakdown.length > 0 && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                Top risk contributors
+              </Typography>
+              <List dense disablePadding>
+                {riskBreakdown.slice(0, 5).map((item, index) => (
+                  <ListItem key={`${item.type}-${index}`} disableGutters sx={{ alignItems: 'flex-start' }}>
+                    <ListItemText
+                      primary={
+                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+                          <Chip label={item.level} size="small" color={item.level === 'HIGH' ? 'error' : item.level === 'MEDIUM' ? 'warning' : 'default'} />
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {item.message}
+                          </Typography>
+                        </Box>
+                      }
+                      secondary={
+                        <Typography component="span" variant="caption" color="text.secondary">
+                          Contribution {item.contribution.toFixed(2)} = S {item.severity_score.toFixed(2)}
+                          {item.severity_source === 'cvss' ? ' (CVSS)' : ''} × w {item.asset_weight.toFixed(2)} × L {item.likelihood.toFixed(2)}
+                          {item.asset_class ? ` · ${item.asset_class}` : ''}
+                        </Typography>
+                      }
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            </Box>
+          )}
         </Paper>
       )}
 
@@ -320,7 +365,7 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
       </Grid>
 
       {/* Correlation (IP → Subdomains, PTR) */}
-      {scanResults.correlation && (scanResults.correlation.ip_to_subdomains && Object.keys(scanResults.correlation.ip_to_subdomains).length > 0 || scanResults.correlation.ptr_records && Object.keys(scanResults.correlation.ptr_records).length > 0) && (
+      {scanResults.correlation && (scanResults.correlation.ip_to_subdomains && Object.keys(scanResults.correlation.ip_to_subdomains).length > 0 || scanResults.correlation.ptr_records && Object.keys(scanResults.correlation.ptr_records).length > 0 || (scanResults.correlation.shared_certificate_hosts?.length ?? 0) > 0) && (
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -355,6 +400,26 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
                         variant="outlined"
                         sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}
                       />
+                    ))}
+                  </Box>
+                </Grid>
+              )}
+              {(scanResults.correlation.shared_certificate_hosts?.length ?? 0) > 0 && (
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" color="text.secondary">Shared SSL certificates</Typography>
+                  <Box sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    {scanResults.correlation.shared_certificate_hosts?.slice(0, 5).map((group, index) => (
+                      <Box key={`${group.certificate_key}-${index}`}>
+                        <Chip
+                          label={`${group.hosts.length} related hosts`}
+                          size="small"
+                          color="info"
+                          sx={{ mb: 0.5 }}
+                        />
+                        <Typography variant="caption" display="block" sx={{ ml: 1, fontFamily: 'monospace' }}>
+                          {group.hosts.slice(0, 8).join(', ')}{group.hosts.length > 8 ? ` +${group.hosts.length - 8}` : ''}
+                        </Typography>
+                      </Box>
                     ))}
                   </Box>
                 </Grid>

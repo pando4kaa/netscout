@@ -85,16 +85,17 @@ def scan_domain(
         from src.analysis.normalizer import normalize_dns_info
         dns_info = normalize_dns_info(dns_info)
 
-    alerts, risk_score = run_risk_analysis(
+    alerts, risk_score, risk_composite, risk_breakdown = run_risk_analysis(
         dns_info=dns_info,
         ssl_info=data.get("ssl_info"),
         port_scan=data.get("port_scan") or [],
         subdomains=subdomains,
         tech_stack=data.get("tech_stack"),
         external_apis=data.get("external_apis"),
+        apex_domain=domain,
     )
 
-    correlation = build_correlation_summary(subdomains, dns_info, domain)
+    correlation = build_correlation_summary(subdomains, dns_info, data.get("ssl_info"), domain)
 
     if on_progress:
         on_progress("analysis", 97, "Building scan summary...")
@@ -133,5 +134,7 @@ def scan_domain(
             total_dns_records=total_dns,
             total_alerts=len(alerts),
             risk_score=risk_score,
+            risk_composite=risk_composite,
+            risk_breakdown=risk_breakdown,
         ),
     )

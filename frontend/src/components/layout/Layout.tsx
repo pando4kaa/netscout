@@ -1,4 +1,4 @@
-import { Box } from '@mui/material'
+import { Box, Typography } from '@mui/material'
 import Header from './Header'
 
 interface LayoutProps {
@@ -19,6 +19,11 @@ const Layout = ({ children }: LayoutProps) => {
         }}
       >
         {children}
+      </Box>
+      <Box component="footer" sx={{ px: 4, py: 1.5, bgcolor: 'background.paper', borderTop: '1px solid', borderColor: 'divider' }}>
+        <Typography variant="caption" color="text.secondary">
+          NetScout is an MVP name for an educational OSINT project. Use active checks only on assets you own or are authorized to test.
+        </Typography>
       </Box>
     </Box>
   )

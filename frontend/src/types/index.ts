@@ -75,6 +75,20 @@ export interface Alert {
   details?: Record<string, unknown>
 }
 
+export interface RiskBreakdownItem {
+  type: string
+  message: string
+  target?: string
+  level: RiskLevel | string
+  severity_score: number
+  severity_source: 'legacy' | 'cvss' | string
+  asset_weight: number
+  likelihood: number
+  contribution: number
+  asset_class?: string
+  cves?: Array<{ id: string; cvss?: number | null }>
+}
+
 export interface ScanResults {
   target_domain: string
   scan_date?: string
@@ -94,12 +108,19 @@ export interface ScanResults {
     total_dns_records?: number
     total_alerts?: number
     risk_score?: number
+    risk_composite?: number | null
+    risk_breakdown?: RiskBreakdownItem[]
   }
   correlation?: {
     subdomain_count?: number
     unique_ips?: number
     ip_to_subdomains?: Record<string, string[]>
     ptr_records?: Record<string, string>
+    shared_certificate_hosts?: Array<{
+      certificate_key: string
+      hosts: string[]
+      san_count?: number
+    }>
   }
 }
 

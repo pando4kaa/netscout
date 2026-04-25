@@ -13,6 +13,22 @@ from .port import PortScanResult
 from .risk import Alert
 
 
+class RiskBreakdownItem(BaseModel):
+    """Composite risk contribution for a single alert."""
+
+    type: str
+    message: str
+    target: Optional[str] = None
+    level: str
+    severity_score: float
+    severity_source: str = "legacy"
+    asset_weight: float
+    likelihood: float
+    contribution: float
+    asset_class: Optional[str] = None
+    cves: List[Dict[str, Any]] = Field(default_factory=list)
+
+
 class ScanSummary(BaseModel):
     """Summary statistics for a scan."""
 
@@ -21,6 +37,8 @@ class ScanSummary(BaseModel):
     total_dns_records: int = 0
     total_alerts: int = 0
     risk_score: int = 0
+    risk_composite: Optional[float] = None
+    risk_breakdown: List[RiskBreakdownItem] = Field(default_factory=list)
 
 
 class ScanRequest(BaseModel):

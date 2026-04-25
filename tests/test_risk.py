@@ -10,10 +10,12 @@ from src.analysis.risk import (
     detect_ssl_risks,
     detect_subdomain_takeover,
     detect_outdated_tech,
+    compute_risk_composite,
     _parse_server_version,
 )
 from src.core.models import (
     Alert,
+    RiskLevel,
     DNSInfo,
     SslInfo,
     CertificateInfo,
@@ -97,6 +99,29 @@ class TestDetectOutdatedTech(unittest.TestCase):
         self.assertEqual(len(alerts), 1)
         self.assertEqual(alerts[0].type, "outdated_tech")
         self.assertIn("nginx", alerts[0].message)
+
+
+class TestCompositeRisk(unittest.TestCase):
+    def test_composite_risk_uses_asset_weight_and_likelihood(self):
+        alerts = [
+            Alert(
+                type="open_port",
+                level=RiskLevel.HIGH,
+                message="Open MySQL port 3306 on 192.0.2.10",
+                target="192.0.2.10",
+            ),
+            Alert(
+                type="missing_dmarc",
+                level=RiskLevel.MEDIUM,
+                message="DMARC missing",
+                target="example.com",
+            ),
+        ]
+        score, breakdown = compute_risk_composite(alerts, "example.com")
+        self.assertGreater(score, 0)
+        self.assertEqual(len(breakdown), 2)
+        self.assertGreaterEqual(breakdown[0]["contribution"], breakdown[1]["contribution"])
+        self.assertIn("asset_weight", breakdown[0])
 
 
 class TestDetectSubdomainTakeover(unittest.TestCase):

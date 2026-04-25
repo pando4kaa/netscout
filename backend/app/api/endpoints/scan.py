@@ -55,6 +55,7 @@ async def debug_api_keys():
         PHISHTANK_APP_KEY,
         CRIMINALIP_API_KEY,
         PULSEDIVE_API_KEY,
+        NVD_API_KEY,
     )
     return {
         "shodan": "set" if SHODAN_API_KEY else "not set",
@@ -67,6 +68,7 @@ async def debug_api_keys():
         "phishtank": "set" if PHISHTANK_APP_KEY else "not set",
         "criminalip": "set" if CRIMINALIP_API_KEY else "not set",
         "pulsedive": "set" if PULSEDIVE_API_KEY else "not set",
+        "nvd": "set" if NVD_API_KEY else "not set",
         "censys_token": "set" if CENSYS_API_TOKEN else "not set",
         "censys_id": "set" if CENSYS_API_ID else "not set",
         "censys_secret": "set" if CENSYS_API_SECRET else "not set",

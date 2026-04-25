@@ -8,7 +8,7 @@ from typing import Dict, List, Any, Optional, Set, Tuple
 import dns.resolver
 import dns.exception
 
-from src.core.models import DNSInfo
+from src.core.models import DNSInfo, SslInfo
 
 
 def _resolve_subdomain_a(subdomain: str) -> List[str]:
@@ -83,9 +83,48 @@ def reverse_dns_neighbors(ips: List[str]) -> Dict[str, str]:
     return ptr_map
 
 
+def shared_certificate_hosts(ssl_info: Optional[SslInfo]) -> List[Dict[str, Any]]:
+    """Group hosts that appear on the same certificate SAN/CN set."""
+    if not ssl_info or not ssl_info.certificates:
+        return []
+
+    groups: Dict[str, Set[str]] = {}
+    san_counts: Dict[str, int] = {}
+    for cert in ssl_info.certificates:
+        if getattr(cert, "error", None):
+            continue
+        host = (cert.host or "").lower().strip()
+        san = sorted({str(name).lower().strip() for name in (cert.san or []) if name})
+        subject = (cert.subject_cn or "").lower().strip()
+        key_parts = san or ([subject] if subject else [])
+        if not key_parts:
+            continue
+        key = "|".join(key_parts)
+        if host:
+            groups.setdefault(key, set()).add(host)
+        for name in san:
+            groups.setdefault(key, set()).add(name.lstrip("*."))
+        san_counts[key] = len(san)
+
+    result: List[Dict[str, Any]] = []
+    for key, hosts in groups.items():
+        if len(hosts) < 2:
+            continue
+        result.append(
+            {
+                "certificate_key": key[:160],
+                "hosts": sorted(hosts),
+                "san_count": san_counts.get(key, 0),
+            }
+        )
+    result.sort(key=lambda item: len(item["hosts"]), reverse=True)
+    return result[:20]
+
+
 def build_correlation_summary(
     subdomains: List[str],
     dns_info: Optional[DNSInfo],
+    ssl_info: Optional[SslInfo] = None,
     root_domain: str = "",
 ) -> Dict[str, Any]:
     """Build correlation summary with IP grouping and reverse DNS."""
@@ -106,4 +145,5 @@ def build_correlation_summary(
         "unique_ips": len(ips),
         "ip_to_subdomains": ip_to_subs,
         "ptr_records": ptr_records,
+        "shared_certificate_hosts": shared_certificate_hosts(ssl_info),
     }
