@@ -8,6 +8,30 @@ const api = axios.create({
   },
 })
 
+let onSessionExpired: (() => void) | null = null
+
+/** Called from AuthProvider when the server returns 401 (e.g. revoked or unexpected token state). */
+export function setSessionExpiredHandler(handler: (() => void) | null) {
+  onSessionExpired = handler
+}
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (!axios.isAxiosError(error) || error.response?.status !== 401) {
+      return Promise.reject(error)
+    }
+    const url = String(error.config?.url || '')
+    if (url.includes('/auth/login') || url.includes('/auth/register')) {
+      return Promise.reject(error)
+    }
+    if (onSessionExpired) {
+      onSessionExpired()
+    }
+    return Promise.reject(error)
+  }
+)
+
 export function setAuthToken(token: string | null) {
   if (token) {
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`

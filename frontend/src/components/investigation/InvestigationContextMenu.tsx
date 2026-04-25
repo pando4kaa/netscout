@@ -12,20 +12,12 @@ import AccountTreeIcon from '@mui/icons-material/AccountTree'
 import WarningIcon from '@mui/icons-material/Warning'
 import ApiIcon from '@mui/icons-material/Api'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
-import { ENRICHERS_BY_ENTITY, ENRICHER_OPSEC } from '../../types'
-
-const ENRICHER_LABELS: Record<string, string> = {
-  dns: 'DNS Resolution',
-  whois: 'WHOIS Lookup',
-  subdomains: 'Subdomain Discovery',
-  ssl: 'SSL Certificate',
-  tech: 'Technology Detection',
-  root_domain: 'Root Domain',
-  port: 'Port Scan',
-  geoip: 'GeoIP',
-  reverse_dns: 'Reverse DNS',
-  ip_to_asn: 'IP to ASN',
-}
+import {
+  ENRICHERS_BY_ENTITY,
+  ENRICHER_LABELS,
+  ENRICHER_OPSEC,
+  INVESTIGATION_EXTERNAL_APIS_BY_ENTITY,
+} from '../../types'
 
 const ENRICHER_ICONS: Record<string, React.ReactNode> = {
   dns: <DnsIcon fontSize="small" />,
@@ -44,25 +36,6 @@ const ENRICHER_ICONS: Record<string, React.ReactNode> = {
   'external_apis:threatcrowd': <ApiIcon fontSize="small" />,
   'external_apis:bgpview': <ApiIcon fontSize="small" />,
   'external_apis:abuseipdb': <ApiIcon fontSize="small" />,
-}
-
-const EXTERNAL_APIS_BY_ENTITY: Record<string, Array<{ id: string; label: string }>> = {
-  domain: [
-    { id: 'virustotal', label: 'VirusTotal' },
-    { id: 'alienvault_otx', label: 'AlienVault OTX' },
-    { id: 'urlscan', label: 'URLScan' },
-    { id: 'threatcrowd', label: 'ThreatCrowd' },
-  ],
-  subdomain: [
-    { id: 'virustotal', label: 'VirusTotal' },
-    { id: 'alienvault_otx', label: 'AlienVault OTX' },
-    { id: 'urlscan', label: 'URLScan' },
-    { id: 'threatcrowd', label: 'ThreatCrowd' },
-  ],
-  ip: [
-    { id: 'bgpview', label: 'BGPView' },
-    { id: 'abuseipdb', label: 'AbuseIPDB' },
-  ],
 }
 
 interface InvestigationContextMenuProps {
@@ -86,7 +59,7 @@ const InvestigationContextMenu = ({
   const [externalApisOpen, setExternalApisOpen] = useState(false)
   const [submenuAnchor, setSubmenuAnchor] = useState<HTMLElement | null>(null)
   const enrichers = ENRICHERS_BY_ENTITY[nodeType] || []
-  const externalApis = EXTERNAL_APIS_BY_ENTITY[nodeType] || []
+  const externalApis = INVESTIGATION_EXTERNAL_APIS_BY_ENTITY[nodeType] || []
 
   const handleExternalApisClick = (e: React.MouseEvent<HTMLElement>) => {
     e.stopPropagation()

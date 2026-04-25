@@ -74,6 +74,9 @@ def scan_domain(
     pipe = pipeline or _build_pipeline(on_progress)
     data = pipe.run(domain)
 
+    if on_progress:
+        on_progress("analysis", 92, "Analyzing risks and correlations...")
+
     dns_info = data.get("dns_info")
     whois_info = data.get("whois_info")
     subdomains = normalize_domains(data.get("subdomains") or [])
@@ -92,6 +95,9 @@ def scan_domain(
     )
 
     correlation = build_correlation_summary(subdomains, dns_info, domain)
+
+    if on_progress:
+        on_progress("analysis", 97, "Building scan summary...")
 
     total_ips = correlation.get("unique_ips", 0) if correlation else 0
     if total_ips == 0 and dns_info and hasattr(dns_info, "a_records"):

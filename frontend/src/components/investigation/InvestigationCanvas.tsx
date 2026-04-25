@@ -1,16 +1,41 @@
 import { useEffect, useRef, useImperativeHandle, forwardRef } from 'react'
-import cytoscape, { Core, NodeSingular } from 'cytoscape'
-// @ts-expect-error - cytoscape-lasso has no types
-import cytoscapeLasso from 'cytoscape-lasso'
-
-cytoscape.use(cytoscapeLasso)
+import cytoscape, { Core, NodeSingular, StylesheetJson } from 'cytoscape'
 import { Box, Paper, Chip } from '@mui/material'
 import { GraphNode, GraphEdge } from '../../types'
+import registerLassoShiftOnly from '../../lib/cytoscape-lasso-shift-only'
+
+let lassoShiftExtensionRegistered = false
+if (!lassoShiftExtensionRegistered) {
+  cytoscape.use(registerLassoShiftOnly as (ext: typeof cytoscape) => void)
+  lassoShiftExtensionRegistered = true
+}
+
+/** All nodes reachable from root via outgoing edges (includes root). */
+function collectDescendantNodeIds(cy: Core, rootId: string): string[] {
+  const ordered: string[] = []
+  const seen = new Set<string>()
+  const stack = [rootId]
+  while (stack.length > 0) {
+    const id = stack.pop()!
+    if (seen.has(id)) continue
+    seen.add(id)
+    ordered.push(id)
+    const el = cy.getElementById(id)
+    if (!el.length) continue
+    el.outgoers('node').forEach((out) => {
+      const oid = out.id()
+      if (!seen.has(oid)) stack.push(oid)
+    })
+  }
+  return ordered
+}
 
 export interface InvestigationCanvasHandle {
   exportPng: () => Promise<Blob>
   clearSelection: () => void
   focusNode: (nodeId: string) => void
+  /** Replace selection with exactly these node ids (must exist on the graph). */
+  setSelectionToIds: (nodeIds: string[]) => void
 }
 
 interface InvestigationCanvasProps {
@@ -101,6 +126,12 @@ const getCytoscapeStyle = (showEdgeLabels: boolean) => [
     'target-arrow-color': '#43a047',
     'width': 2.8,
   }},
+  { selector: 'node:selected', style: {
+    'border-width': 5,
+    'border-color': '#d84315',
+    'border-opacity': 1,
+    'z-index': 9999,
+  }},
 ]
 
 function buildElements(nodes: GraphNode[], edges: GraphEdge[]) {
@@ -129,19 +160,53 @@ const InvestigationCanvas = forwardRef<InvestigationCanvasHandle, InvestigationC
   ) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const cyRef = useRef<Core | null>(null)
+  const onSelectionChangeRef = useRef(onSelectionChange)
+  onSelectionChangeRef.current = onSelectionChange
 
   useImperativeHandle(ref, () => ({
-    exportPng: () => {
+    exportPng: (): Promise<Blob> => {
       const cy = cyRef.current
       if (!cy) return Promise.reject(new Error('Canvas not ready'))
-      return new Promise<Blob>((resolve, reject) => {
-        cy.png({ output: 'blob', full: true })
-          .then((blob) => resolve(blob as Blob))
-          .catch(reject)
+      // Cytoscape 3.x returns a Blob synchronously for output: 'blob' (not a Promise).
+      return new Promise((resolve, reject) => {
+        requestAnimationFrame(() => {
+          try {
+            const inst = cyRef.current
+            if (!inst) {
+              reject(new Error('Canvas not ready'))
+              return
+            }
+            const result = inst.png({
+              output: 'blob',
+              full: true,
+              bg: '#fafafa',
+              scale: 2,
+            }) as unknown
+            if (result instanceof Blob) {
+              resolve(result)
+              return
+            }
+            if (
+              result &&
+              typeof result === 'object' &&
+              'then' in result &&
+              typeof (result as PromiseLike<Blob>).then === 'function'
+            ) {
+              Promise.resolve(result as PromiseLike<Blob>).then(resolve, reject)
+              return
+            }
+            reject(new Error('PNG export returned unexpected type'))
+          } catch (e) {
+            reject(e)
+          }
+        })
       })
     },
     clearSelection: () => {
-      cyRef.current?.nodes().unselect()
+      const cy = cyRef.current
+      if (!cy) return
+      cy.nodes().unselect()
+      onSelectionChangeRef.current?.([])
     },
     focusNode: (nodeId: string) => {
       const cy = cyRef.current
@@ -150,6 +215,19 @@ const InvestigationCanvas = forwardRef<InvestigationCanvasHandle, InvestigationC
       if (node.length > 0) {
         cy.animate({ center: { eles: node }, zoom: 1.5 }, { duration: 300 })
       }
+    },
+    setSelectionToIds: (nodeIds: string[]) => {
+      const cy = cyRef.current
+      if (!cy) return
+      const idSet = new Set(nodeIds)
+      cy.batch(() => {
+        cy.nodes().forEach((n) => {
+          if (idSet.has(n.id())) n.select()
+          else n.unselect()
+        })
+      })
+      const selected = cy.nodes(':selected')
+      onSelectionChangeRef.current?.(Array.from(selected) as NodeSingular[])
     },
   }))
 
@@ -165,7 +243,7 @@ const InvestigationCanvas = forwardRef<InvestigationCanvasHandle, InvestigationC
       maxZoom: 3,
       wheelSensitivity: 1.5,
       boxSelectionEnabled: true,
-      style: getCytoscapeStyle(showEdgeLabels),
+      style: getCytoscapeStyle(showEdgeLabels) as StylesheetJson,
       layout: {
         name: elements.length > 0 ? 'cose' : 'preset',
         fit: false,
@@ -190,9 +268,26 @@ const InvestigationCanvas = forwardRef<InvestigationCanvasHandle, InvestigationC
       onNodeRightClick(node, pos.x, pos.y)
     })
 
-    if (onNodeClick) {
+    if (onNodeClick || onSelectionChange) {
       cy.on('tap', 'node', (evt) => {
-        onNodeClick(evt.target)
+        const oe = evt.originalEvent as MouseEvent | undefined
+        if (oe?.shiftKey) {
+          evt.preventDefault()
+          const root = evt.target as NodeSingular
+          const ids = collectDescendantNodeIds(cy, root.id())
+          setTimeout(() => {
+            cy.batch(() => {
+              cy.nodes().unselect()
+              ids.forEach((id) => {
+                const n = cy.getElementById(id)
+                if (n.nonempty()) n.select()
+              })
+            })
+          }, 0)
+          onNodeClick?.(root)
+          return
+        }
+        onNodeClick?.(evt.target as NodeSingular)
       })
     }
 
@@ -213,10 +308,20 @@ const InvestigationCanvas = forwardRef<InvestigationCanvasHandle, InvestigationC
       cy.center(rootDomain)
     }
 
-    cy.lassoSelectionEnabled(true)
+    try {
+      ;(cy as unknown as { lassoSelectionEnabled?: (v: boolean) => void }).lassoSelectionEnabled?.(true)
+    } catch {
+      /* ignore if extension failed */
+    }
+
     cyRef.current = cy
 
     return () => {
+      try {
+        ;(cy as unknown as { lassoSelectionEnabled?: (v: boolean) => void }).lassoSelectionEnabled?.(false)
+      } catch {
+        /* ignore */
+      }
       cy.destroy()
       cyRef.current = null
     }
@@ -241,8 +346,9 @@ const InvestigationCanvas = forwardRef<InvestigationCanvasHandle, InvestigationC
         <Chip label="Right-click node for enrichers" size="small" variant="outlined" />
         <Chip label="Scroll to zoom" size="small" variant="outlined" />
         <Chip label="Drag to pan" size="small" variant="outlined" />
-        <Chip label="Shift+drag for box selection" size="small" variant="outlined" />
-        <Chip label="Shift+drag for lasso selection" size="small" variant="outlined" />
+        <Chip label="Ctrl+drag (Cmd on Mac): box selection" size="small" variant="outlined" />
+        <Chip label="Shift+drag: lasso selection" size="small" variant="outlined" />
+        <Chip label="Shift+click node: subtree selection" size="small" variant="outlined" />
       </Box>
     </Box>
   )

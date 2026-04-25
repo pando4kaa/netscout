@@ -9,7 +9,7 @@ import {
   Paper,
   Link,
 } from '@mui/material'
-import { Link as RouterLink, useNavigate } from 'react-router-dom'
+import { Link as RouterLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { authApi } from '../services/api'
 
@@ -20,6 +20,8 @@ const LoginPage = () => {
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const sessionExpired = Boolean((location.state as { sessionExpired?: boolean } | null)?.sessionExpired)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -47,6 +49,11 @@ const LoginPage = () => {
           <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 2 }}>
             Sign in to save scans and schedule recurring scans
           </Typography>
+          {sessionExpired && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Your session has expired. Please sign in again.
+            </Alert>
+          )}
           {error && (
             <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
               {error}

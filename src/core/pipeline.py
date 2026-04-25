@@ -19,6 +19,18 @@ PHASE2_ENRICHERS = ["ssl", "port", "tech"]
 # Phase 3: depend on Phase 2 (external APIs, geoip)
 PHASE3_ENRICHERS = ["external_apis", "geoip"]
 
+# Monotonic WebSocket/UI progress (0–90 in pipeline; orchestrator uses 92–97; API sends 100 on done)
+ENRICH_COMPLETE_PROGRESS = {
+    "dns": 14,
+    "whois": 22,
+    "subdomain": 32,
+    "port": 48,
+    "ssl": 58,
+    "tech": 68,
+    "external_apis": 84,
+    "geoip": 88,
+}
+
 
 class EnricherPipeline:
     """Executes enrichers in parallel phases. Phase 2 starts as soon as its deps are ready."""
@@ -35,7 +47,13 @@ class EnricherPipeline:
         self.enrichers.append(enricher)
         return self
 
-    def _run_phase(self, domain: str, context: ScanContextData, enricher_names: List[str]) -> None:
+    def _run_phase(
+        self,
+        domain: str,
+        context: ScanContextData,
+        enricher_names: List[str],
+        report: Optional[Callable[[str, str, int], None]],
+    ) -> None:
         """Run a phase of enrichers in parallel."""
         phase_enrichers = [e for e in self.enrichers if e.name in enricher_names]
         if not phase_enrichers:
@@ -51,11 +69,13 @@ class EnricherPipeline:
                 try:
                     result = future.result()
                     context.merge(result)
-                    if self.on_progress:
-                        self.on_progress(enricher.name, 0, f"{enricher.name} complete")
+                    if report:
+                        tgt = ENRICH_COMPLETE_PROGRESS.get(enricher.name) or 88
+                        report(enricher.name, f"{enricher.name} complete", tgt)
                 except Exception as e:
-                    if self.on_progress:
-                        self.on_progress(enricher.name, 0, f"Error: {e}")
+                    if report:
+                        tgt = ENRICH_COMPLETE_PROGRESS.get(enricher.name) or 88
+                        report(enricher.name, f"Error: {e}", tgt)
 
     def run(self, domain: str) -> Dict[str, Any]:
         """Run enrichers with overlapping phases for faster scanning."""
@@ -64,6 +84,16 @@ class EnricherPipeline:
         phase2_enrichers = {e.name: e for e in self.enrichers if e.name in PHASE2_ENRICHERS}
         phase2_started: Set[str] = set()
         phase2_futures: Dict[Future, Any] = {}
+
+        progress_floor = 0
+
+        def report(stage: str, message: str, target: int) -> None:
+            """Emit monotonic progress (never decreases) for WebSocket/UI."""
+            nonlocal progress_floor
+            pct = max(target, progress_floor)
+            progress_floor = pct
+            if self.on_progress:
+                self.on_progress(stage, pct, message)
 
         def maybe_start_phase2(completed_name: str) -> None:
             # Port: needs dns_info (IPs)
@@ -86,8 +116,7 @@ class EnricherPipeline:
         max_workers = len(phase1_enrichers) + len(PHASE2_ENRICHERS)
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Phase 1
-            if self.on_progress:
-                self.on_progress("phase1", 10, "Running DNS, WHOIS, Subdomains...")
+            report("phase1", "Running DNS, WHOIS, Subdomains...", 5)
             p1_futures = {
                 executor.submit(e.enrich, domain, context.to_dict()): e
                 for e in phase1_enrichers
@@ -98,26 +127,25 @@ class EnricherPipeline:
                     result = future.result()
                     context.merge(result)
                     maybe_start_phase2(enricher.name)
-                    if self.on_progress:
-                        self.on_progress(enricher.name, 0, f"{enricher.name} complete")
+                    tgt = ENRICH_COMPLETE_PROGRESS.get(enricher.name, progress_floor + 1)
+                    report(enricher.name, f"{enricher.name} complete", tgt)
                 except Exception as e:
-                    if self.on_progress:
-                        self.on_progress(enricher.name, 0, f"Error: {e}")
+                    tgt = ENRICH_COMPLETE_PROGRESS.get(enricher.name, progress_floor + 1)
+                    report(enricher.name, f"Error: {e}", tgt)
 
             # Wait for Phase 2 (may have started during Phase 1)
             if phase2_futures:
-                if self.on_progress:
-                    self.on_progress("phase2", 50, "Running SSL, Port, Tech...")
+                report("phase2", "Running SSL, Port, Tech...", 36)
                 for future in as_completed(phase2_futures):
                     enricher = phase2_futures[future]
                     try:
                         result = future.result()
                         context.merge(result)
-                        if self.on_progress:
-                            self.on_progress(enricher.name, 0, f"{enricher.name} complete")
+                        tgt = ENRICH_COMPLETE_PROGRESS.get(enricher.name, progress_floor + 1)
+                        report(enricher.name, f"{enricher.name} complete", tgt)
                     except Exception as e:
-                        if self.on_progress:
-                            self.on_progress(enricher.name, 0, f"Error: {e}")
+                        tgt = ENRICH_COMPLETE_PROGRESS.get(enricher.name, progress_floor + 1)
+                        report(enricher.name, f"Error: {e}", tgt)
 
             # Phase 2 enrichers that weren't started by overlap (e.g. if deps not ready)
             for name in PHASE2_ENRICHERS:
@@ -127,17 +155,15 @@ class EnricherPipeline:
                         try:
                             result = e.enrich(domain, context.to_dict())
                             context.merge(result)
-                            if self.on_progress:
-                                self.on_progress(e.name, 0, f"{e.name} complete")
+                            tgt = ENRICH_COMPLETE_PROGRESS.get(e.name, progress_floor + 1)
+                            report(e.name, f"{e.name} complete", tgt)
                         except Exception as err:
-                            if self.on_progress:
-                                self.on_progress(e.name, 0, f"Error: {err}")
+                            tgt = ENRICH_COMPLETE_PROGRESS.get(e.name, progress_floor + 1)
+                            report(e.name, f"Error: {err}", tgt)
 
         # Phase 3
-        if self.on_progress:
-            self.on_progress("phase3", 85, "Running GeoIP, External APIs...")
-        self._run_phase(domain, context, PHASE3_ENRICHERS)
+        report("phase3", "Running GeoIP, External APIs...", 72)
+        self._run_phase(domain, context, PHASE3_ENRICHERS, report)
 
-        if self.on_progress:
-            self.on_progress("done", 100, "Scan complete")
+        report("pipeline", "Enrichment complete", 90)
         return context.to_dict()

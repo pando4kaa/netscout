@@ -276,6 +276,22 @@ def _entity_to_cy_id(entity_type: str, entity_value: str) -> str:
     return f"{entity_type}_{entity_value}"
 
 
+def _parent_fqdn_under_apex(sub: str, apex: str) -> str:
+    """
+    Immediate parent hostname of sub within zone rooted at apex.
+    If sub is a direct child of apex, returns apex.
+    e.g. accounts.smart-stage.ukma.edu.ua -> smart-stage.ukma.edu.ua (apex ukma.edu.ua).
+    """
+    s = sub.lower().strip().rstrip(".")
+    a = apex.lower().strip().rstrip(".")
+    if s == a or not s.endswith("." + a):
+        return a
+    rel = s[: -(len(a) + 1)]
+    if not rel or "." not in rel:
+        return a
+    return s.split(".", 1)[1]
+
+
 def _to_dict(obj: Any) -> Any:
     """Convert Pydantic model to dict for safe .get() access."""
     if obj is None:
@@ -413,9 +429,23 @@ def _enricher_subdomains(domain: str, entity_type: str, entity_value: str, progr
             subs = filtered
     nodes = []
     edges = []
-    src = _entity_to_cy_id(entity_type, entity_value)
+    apex = domain.lower().strip().rstrip(".")
+    root_src = _entity_to_cy_id(entity_type, entity_value)
+    sub_by_lower: Dict[str, str] = {s.lower(): s for s in subs}
+    if entity_type == "subdomain":
+        ev = entity_value.strip().rstrip(".")
+        sub_by_lower[ev.lower()] = ev
     for sub in subs:
         nodes.append({"type": "subdomain", "value": sub})
+        parent = _parent_fqdn_under_apex(sub, apex)
+        pl = parent.lower().strip().rstrip(".")
+        if pl == apex:
+            src = root_src
+        elif pl in sub_by_lower:
+            src = f"subdomain_{sub_by_lower[pl]}"
+        else:
+            # Intermediate parent not in this discovery batch — anchor to investigation root
+            src = root_src
         edges.append({"source": src, "target": f"subdomain_{sub}", "rel": "HAS_SUBDOMAIN"})
     progress("subdomains", 100, f"Found {len(subs)} subdomains")
     return (nodes, edges)

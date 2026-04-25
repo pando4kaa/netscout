@@ -27,7 +27,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { Investigation } from '../types'
 
 const InvestigationsPage = () => {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, isLoading: authLoading } = useAuth()
   const navigate = useNavigate()
   const [investigations, setInvestigations] = useState<Investigation[]>([])
   const [loading, setLoading] = useState(true)
@@ -36,6 +36,7 @@ const InvestigationsPage = () => {
   const [renameValue, setRenameValue] = useState('')
 
   useEffect(() => {
+    if (authLoading) return
     if (!isAuthenticated) {
       navigate('/login')
       return
@@ -52,7 +53,7 @@ const InvestigationsPage = () => {
       }
     }
     load()
-  }, [isAuthenticated, navigate])
+  }, [authLoading, isAuthenticated, navigate])
 
   const handleCreate = async () => {
     try {
@@ -91,6 +92,14 @@ const InvestigationsPage = () => {
     } catch (err) {
       setError('Failed to rename investigation')
     }
+  }
+
+  if (authLoading) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 3, display: 'flex', justifyContent: 'center' }}>
+        <CircularProgress />
+      </Container>
+    )
   }
 
   if (!isAuthenticated) return null

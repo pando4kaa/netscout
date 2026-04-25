@@ -74,10 +74,10 @@ const InvestigationConsole = ({
           borderColor: 'divider',
         }}
       >
-        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+        <Typography variant="caption" sx={{ color: '#fff', fontWeight: 600 }}>
           &gt;_ Console
         </Typography>
-        <IconButton size="small" onClick={onClear} sx={{ color: 'text.secondary' }} title="Clear">
+        <IconButton size="small" onClick={onClear} sx={{ color: 'rgba(255,255,255,0.85)' }} title="Clear">
           <DeleteSweepIcon fontSize="small" />
         </IconButton>
       </Box>
@@ -96,7 +96,7 @@ const InvestigationConsole = ({
         }}
       >
         {logs.length === 0 ? (
-          <Typography component="span" variant="caption" color="text.secondary">
+          <Typography component="span" variant="caption" sx={{ color: '#fff' }}>
             Run an enricher to see logs...
           </Typography>
         ) : (
@@ -113,7 +113,7 @@ const InvestigationConsole = ({
               <Box
                 component="span"
                 sx={{
-                  color: 'text.secondary',
+                  color: '#fff',
                   mr: 1,
                 }}
               >
@@ -129,7 +129,9 @@ const InvestigationConsole = ({
               >
                 {entry.level}
               </Box>
-              <Box component="span">{entry.message}</Box>
+              <Box component="span" sx={{ color: '#fff' }}>
+                {entry.message}
+              </Box>
             </Box>
           ))
         )}

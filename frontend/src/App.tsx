@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { ThemeProvider, createTheme } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
 import { AuthProvider } from './contexts/AuthContext'
+import SessionExpiryBridge from './components/auth/SessionExpiryBridge'
 import Layout from './components/layout/Layout'
 import { ErrorBoundary } from './components/common/ErrorBoundary'
 import HomePage from './pages/HomePage'
@@ -96,8 +97,9 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <AuthProvider>
-        <Router>
+      <Router>
+        <AuthProvider>
+          <SessionExpiryBridge />
           <Layout>
             <ErrorBoundary>
               <Routes>
@@ -114,8 +116,8 @@ function App() {
               </Routes>
             </ErrorBoundary>
           </Layout>
-        </Router>
-      </AuthProvider>
+        </AuthProvider>
+      </Router>
     </ThemeProvider>
   )
 }

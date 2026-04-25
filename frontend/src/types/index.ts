@@ -146,6 +146,39 @@ export const ENRICHERS_BY_ENTITY: Record<string, string[]> = {
   ip: ['port', 'geoip', 'reverse_dns', 'ip_to_asn'],
 }
 
+/** Display names for investigation context menu and bulk enricher menu */
+export const ENRICHER_LABELS: Record<string, string> = {
+  dns: 'DNS Resolution',
+  whois: 'WHOIS Lookup',
+  subdomains: 'Subdomain Discovery',
+  ssl: 'SSL Certificate',
+  tech: 'Technology Detection',
+  root_domain: 'Root Domain',
+  port: 'Port Scan',
+  geoip: 'GeoIP',
+  reverse_dns: 'Reverse DNS',
+  ip_to_asn: 'IP to ASN',
+}
+
+export const INVESTIGATION_EXTERNAL_APIS_BY_ENTITY: Record<string, Array<{ id: string; label: string }>> = {
+  domain: [
+    { id: 'virustotal', label: 'VirusTotal' },
+    { id: 'alienvault_otx', label: 'AlienVault OTX' },
+    { id: 'urlscan', label: 'URLScan' },
+    { id: 'threatcrowd', label: 'ThreatCrowd' },
+  ],
+  subdomain: [
+    { id: 'virustotal', label: 'VirusTotal' },
+    { id: 'alienvault_otx', label: 'AlienVault OTX' },
+    { id: 'urlscan', label: 'URLScan' },
+    { id: 'threatcrowd', label: 'ThreatCrowd' },
+  ],
+  ip: [
+    { id: 'bgpview', label: 'BGPView' },
+    { id: 'abuseipdb', label: 'AbuseIPDB' },
+  ],
+}
+
 export const ENRICHER_OPSEC: Record<string, 'passive' | 'semi-passive' | 'active'> = {
   dns: 'semi-passive',
   whois: 'semi-passive',

@@ -20,6 +20,8 @@ import {
   Stack,
   Menu,
   MenuItem,
+  Paper,
+  LinearProgress,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
@@ -31,7 +33,15 @@ import ShareIcon from '@mui/icons-material/Share'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { investigationsApi } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
-import { InvestigationDetail, GraphNode, GraphEdge, ENRICHER_OPSEC } from '../types'
+import {
+  InvestigationDetail,
+  GraphNode,
+  GraphEdge,
+  ENRICHER_OPSEC,
+  ENRICHERS_BY_ENTITY,
+  ENRICHER_LABELS,
+  INVESTIGATION_EXTERNAL_APIS_BY_ENTITY,
+} from '../types'
 import InvestigationCanvas, {
   type InvestigationCanvasHandle,
 } from '../components/investigation/InvestigationCanvas'
@@ -66,10 +76,62 @@ const getEntityValueFromNode = (data: Record<string, unknown>): string => {
   return String(data.label || data.id || '')
 }
 
+const BULK_ENRICHER_MIXED_TYPES_ERROR =
+  'Select at least two nodes of the same type (domain, subdomain, or IP) for bulk enricher.'
+
+/** Parallel bulk runs for passive enrichers; active scans stay sequential. */
+function bulkEnricherConcurrency(enricherName: string): number {
+  const tier =
+    (ENRICHER_OPSEC as Record<string, 'passive' | 'semi-passive' | 'active'>)[enricherName] ??
+    'semi-passive'
+  if (tier === 'active') return 1
+  if (tier === 'semi-passive') return 4
+  return 8
+}
+
+/** Run async work over items with at most `concurrency` in flight; results ordered by index. */
+async function runPool<T, R>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length)
+  let next = 0
+  const workerLoop = async () => {
+    for (;;) {
+      const i = next
+      next += 1
+      if (i >= items.length) return
+      results[i] = await worker(items[i], i)
+    }
+  }
+  const n = Math.max(1, Math.min(concurrency, items.length))
+  await Promise.all(Array.from({ length: n }, () => workerLoop()))
+  return results
+}
+
+type ActiveEnricherConfirm =
+  | { mode: 'single'; enricherName: string; nodeType: string; nodeValue: string }
+  | { mode: 'bulk'; enricherName: string; targets: Array<{ type: string; value: string }> }
+
+type EnricherProgressState = {
+  label: string
+  total: number
+  done: number
+}
+
+function enricherDisplayLabel(enricherName: string): string {
+  if (ENRICHER_LABELS[enricherName]) return ENRICHER_LABELS[enricherName]
+  if (enricherName.startsWith('external_apis:')) {
+    return enricherName.slice('external_apis:'.length)
+  }
+  return enricherName
+}
+
 const InvestigationDetailPage = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { isAuthenticated, token } = useAuth()
+  const { isAuthenticated, isLoading: authLoading } = useAuth()
   const [investigation, setInvestigation] = useState<InvestigationDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -88,6 +150,7 @@ const InvestigationDetailPage = () => {
   } | null>(null)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [enricherLoading, setEnricherLoading] = useState(false)
+  const [enricherProgress, setEnricherProgress] = useState<EnricherProgressState | null>(null)
   const [nameEditing, setNameEditing] = useState(false)
   const [editName, setEditName] = useState('')
   const [consoleLogs, setConsoleLogs] = useState<ConsoleLogEntry[]>([])
@@ -96,11 +159,8 @@ const InvestigationDetailPage = () => {
   const [selectedNodes, setSelectedNodes] = useState<string[]>([])
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
   const [shareUrl, setShareUrl] = useState<string | null>(null)
-  const [confirmActiveDialog, setConfirmActiveDialog] = useState<{
-    enricherName: string
-    nodeType: string
-    nodeValue: string
-  } | null>(null)
+  const [confirmActiveDialog, setConfirmActiveDialog] = useState<ActiveEnricherConfirm | null>(null)
+  const [bulkEnricherAnchor, setBulkEnricherAnchor] = useState<null | HTMLElement>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [exportAnchor, setExportAnchor] = useState<null | HTMLElement>(null)
   const [typeFilter, setTypeFilter] = useState<Record<string, boolean>>({
@@ -147,12 +207,13 @@ const InvestigationDetailPage = () => {
   )
 
   useEffect(() => {
+    if (authLoading) return
     if (!isAuthenticated) {
       navigate('/login')
       return
     }
     loadInvestigation()
-  }, [isAuthenticated, navigate, loadInvestigation])
+  }, [authLoading, isAuthenticated, navigate, loadInvestigation])
 
   useEffect(() => {
     const preventContextMenu = (ev: Event) => {
@@ -213,6 +274,70 @@ const InvestigationDetailPage = () => {
   const allNodes = (investigation?.graph?.nodes ?? []) as GraphNode[]
   const allEdges = (investigation?.graph?.edges ?? []) as GraphEdge[]
 
+  const bulkSelectionInfo = useMemo(() => {
+    if (selectedNodes.length < 2) return null
+    const targets: Array<{ type: string; value: string }> = []
+    for (const cyId of selectedNodes) {
+      const n = allNodes.find((x) => x.data.id === cyId)
+      if (!n) continue
+      const d = n.data as Record<string, unknown>
+      targets.push({
+        type: String(d.type || 'domain'),
+        value: getEntityValueFromNode(d),
+      })
+    }
+    if (targets.length < 2) return null
+    const types = new Set(targets.map((t) => t.type))
+    let unifiedType: string | null = null
+    if (types.size === 1) {
+      unifiedType = targets[0].type
+    } else {
+      // Root domain + subdomains share the same enricher catalog as domain-only.
+      const onlyDomainOrSubdomain = [...types].every((t) => t === 'domain' || t === 'subdomain')
+      if (onlyDomainOrSubdomain) {
+        unifiedType = 'domain'
+      }
+    }
+    return { targets, unifiedType }
+  }, [selectedNodes, allNodes])
+
+  const bulkEnricherMenuAvailable = useMemo(() => {
+    const t = bulkSelectionInfo?.unifiedType
+    if (!t) return false
+    return (
+      (ENRICHERS_BY_ENTITY[t] || []).length > 0 ||
+      (INVESTIGATION_EXTERNAL_APIS_BY_ENTITY[t] || []).length > 0
+    )
+  }, [bulkSelectionInfo])
+
+  /** Offer filter when selection mixes subdomains with non-hostname types (IP, MX, …). Domain+subdomain alone is bulk-compatible. */
+  const keepSubdomainsOnlyOffered = useMemo(() => {
+    if (selectedNodes.length < 2) return false
+    const types = new Set<string>()
+    for (const id of selectedNodes) {
+      const n = allNodes.find((x) => x.data.id === id)
+      if (!n) continue
+      const d = n.data as Record<string, unknown>
+      types.add(String(d.type || 'domain'))
+    }
+    if (!types.has('subdomain')) return false
+    const onlyDomainOrSubdomain = [...types].every((t) => t === 'domain' || t === 'subdomain')
+    if (onlyDomainOrSubdomain) return false
+    return types.size > 1
+  }, [selectedNodes, allNodes])
+
+  const handleKeepSubdomainsOnly = useCallback(() => {
+    const subIds = selectedNodes.filter((id) => {
+      const n = allNodes.find((x) => x.data.id === id)
+      if (!n) return false
+      const d = n.data as Record<string, unknown>
+      return String(d.type || 'domain') === 'subdomain'
+    })
+    if (subIds.length === 0) return
+    canvasRef.current?.setSelectionToIds(subIds)
+    setError(null)
+  }, [selectedNodes, allNodes])
+
   const handleSearch = useCallback(() => {
     const q = searchQuery.trim().toLowerCase()
     if (!q || !allNodes.length) return
@@ -270,11 +395,31 @@ const InvestigationDetailPage = () => {
   }, [])
 
   const runEnricherImpl = useCallback(
-    async (enricherName: string, nodeType: string, nodeValue: string) => {
+    async (
+      enricherName: string,
+      nodeType: string,
+      nodeValue: string,
+      options: {
+        manageLoading?: boolean
+        reloadInvestigation?: boolean
+        /** Fires once after this target finishes (success or error); used for bulk progress. */
+        onTargetComplete?: () => void
+      } = {}
+    ) => {
       if (!id) return
-      setEnricherLoading(true)
-      setError(null)
-      addConsoleLog('INFO', `Transform ${nodeType}_to_${enricherName} started.`)
+      const manageLoading = options.manageLoading !== false
+      const reloadInvestigation = options.reloadInvestigation !== false
+      const onTargetComplete = options.onTargetComplete
+      if (manageLoading) {
+        setEnricherLoading(true)
+        setError(null)
+        setEnricherProgress({
+          label: enricherDisplayLabel(enricherName),
+          total: 1,
+          done: 0,
+        })
+      }
+      addConsoleLog('INFO', `Transform ${nodeType}_to_${enricherName} started (${nodeValue}).`)
       try {
         let result = await investigationsApi.runEnricher(
           id,
@@ -307,20 +452,75 @@ const InvestigationDetailPage = () => {
           addConsoleLog('INFO', msg)
         }
         addConsoleLog('CMPL', `Transform ${nodeType}_to_${enricherName} finished.`)
-        await loadInvestigation()
-        window.setTimeout(() => {
-          void loadInvestigation()
-        }, 450)
+        if (reloadInvestigation) {
+          await loadInvestigation()
+          window.setTimeout(() => {
+            void loadInvestigation()
+          }, 450)
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Enricher failed'
         setError(msg)
         addConsoleLog('ERR', `Transform ${nodeType}_to_${enricherName} failed: ${msg}`)
         console.error(err)
       } finally {
-        setEnricherLoading(false)
+        onTargetComplete?.()
+        if (manageLoading) {
+          setEnricherLoading(false)
+          setEnricherProgress(null)
+        }
       }
     },
     [id, loadInvestigation, addConsoleLog]
+  )
+
+  const runBulkEnricherOnTargets = useCallback(
+    async (enricherName: string, targets: Array<{ type: string; value: string }>) => {
+      if (targets.length === 0) return
+      const concurrency = bulkEnricherConcurrency(enricherName)
+      const doneCounter = { n: 0 }
+      const bumpProgress = () => {
+        doneCounter.n += 1
+        setEnricherProgress((p) =>
+          p ? { ...p, done: Math.min(p.total, doneCounter.n) } : null
+        )
+      }
+      setEnricherProgress({
+        label: enricherDisplayLabel(enricherName),
+        total: targets.length,
+        done: 0,
+      })
+      addConsoleLog(
+        'INFO',
+        `Bulk ${enricherName}: ${targets.length} target(s), concurrency ${concurrency}.`
+      )
+      try {
+        if (concurrency <= 1) {
+          for (const t of targets) {
+            await runEnricherImpl(enricherName, t.type, t.value, {
+              manageLoading: false,
+              reloadInvestigation: false,
+              onTargetComplete: bumpProgress,
+            })
+          }
+        } else {
+          await runPool(targets, concurrency, async (t) => {
+            await runEnricherImpl(enricherName, t.type, t.value, {
+              manageLoading: false,
+              reloadInvestigation: false,
+              onTargetComplete: bumpProgress,
+            })
+          })
+        }
+        await loadInvestigation()
+        window.setTimeout(() => {
+          void loadInvestigation()
+        }, 450)
+      } finally {
+        setEnricherProgress(null)
+      }
+    },
+    [runEnricherImpl, loadInvestigation, addConsoleLog]
   )
 
   const handleRunEnricher = useCallback(
@@ -328,12 +528,35 @@ const InvestigationDetailPage = () => {
       if (!id || !contextMenu) return
       const { nodeType, nodeValue } = contextMenu
       if (ENRICHER_OPSEC[enricherName] === 'active') {
-        setConfirmActiveDialog({ enricherName, nodeType, nodeValue })
+        setConfirmActiveDialog({ mode: 'single', enricherName, nodeType, nodeValue })
         return
       }
       await runEnricherImpl(enricherName, nodeType, nodeValue)
     },
     [id, contextMenu, runEnricherImpl]
+  )
+
+  const handleBulkEnricherPick = useCallback(
+    async (enricherName: string) => {
+      setBulkEnricherAnchor(null)
+      if (!bulkSelectionInfo?.unifiedType) {
+        setError(BULK_ENRICHER_MIXED_TYPES_ERROR)
+        return
+      }
+      const { targets } = bulkSelectionInfo
+      if (ENRICHER_OPSEC[enricherName] === 'active') {
+        setConfirmActiveDialog({ mode: 'bulk', enricherName, targets })
+        return
+      }
+      setEnricherLoading(true)
+      setError(null)
+      try {
+        await runBulkEnricherOnTargets(enricherName, targets)
+      } finally {
+        setEnricherLoading(false)
+      }
+    },
+    [bulkSelectionInfo, runBulkEnricherOnTargets]
   )
 
   const handleAddEntity = useCallback(
@@ -381,6 +604,14 @@ const InvestigationDetailPage = () => {
       ),
     }
   }, [allNodes, allEdges, typeFilter])
+
+  if (authLoading) {
+    return (
+      <Container maxWidth="xl" sx={{ py: 3, display: 'flex', justifyContent: 'center' }}>
+        <CircularProgress />
+      </Container>
+    )
+  }
 
   if (!isAuthenticated) return null
 
@@ -528,7 +759,11 @@ const InvestigationDetailPage = () => {
           startIcon={<PhotoCameraIcon />}
           onClick={async () => {
             try {
-              const blob = await canvasRef.current?.exportPng()
+              if (!canvasRef.current) {
+                setError('Graph is still loading. Try again in a moment.')
+                return
+              }
+              const blob = await canvasRef.current.exportPng()
               if (!blob) return
               const url = window.URL.createObjectURL(blob)
               const link = document.createElement('a')
@@ -551,6 +786,72 @@ const InvestigationDetailPage = () => {
           <Typography variant="body2" color="text.secondary">
             {selectedNodes.length} nodes selected
           </Typography>
+          {!bulkSelectionInfo?.unifiedType && (
+            <Typography variant="caption" color="warning.main">
+              Bulk enricher: choose nodes of one type (e.g. only IPs or only subdomains).
+            </Typography>
+          )}
+          {keepSubdomainsOnlyOffered && (
+            <Button
+              size="small"
+              variant="outlined"
+              color="secondary"
+              onClick={handleKeepSubdomainsOnly}
+              sx={{ textTransform: 'none' }}
+            >
+              Залишити сабдомени
+            </Button>
+          )}
+          <Button
+            size="small"
+            variant="outlined"
+            disabled={selectedNodes.length < 2 || enricherLoading}
+            onClick={(e) => setBulkEnricherAnchor(e.currentTarget)}
+            sx={{ textTransform: 'none' }}
+          >
+            Run enricher on all
+          </Button>
+          <Menu
+            anchorEl={bulkEnricherAnchor}
+            open={Boolean(bulkEnricherAnchor)}
+            onClose={() => setBulkEnricherAnchor(null)}
+            MenuListProps={{ sx: { minWidth: 220 } }}
+          >
+            {!bulkSelectionInfo?.unifiedType && selectedNodes.length >= 2 && (
+              <>
+                <MenuItem disabled sx={{ whiteSpace: 'normal', maxWidth: 340 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Оберіть ноди одного типу (наприклад лише сабдомени) для масового enricher.
+                  </Typography>
+                </MenuItem>
+                {keepSubdomainsOnlyOffered && (
+                  <MenuItem
+                    onClick={() => {
+                      setBulkEnricherAnchor(null)
+                      handleKeepSubdomainsOnly()
+                    }}
+                  >
+                    Залишити сабдомени
+                  </MenuItem>
+                )}
+              </>
+            )}
+            {bulkSelectionInfo?.unifiedType &&
+              (ENRICHERS_BY_ENTITY[bulkSelectionInfo.unifiedType] || []).map((name) => (
+                <MenuItem key={name} onClick={() => void handleBulkEnricherPick(name)}>
+                  {ENRICHER_LABELS[name] || name}
+                </MenuItem>
+              ))}
+            {bulkSelectionInfo?.unifiedType &&
+              (INVESTIGATION_EXTERNAL_APIS_BY_ENTITY[bulkSelectionInfo.unifiedType] || []).map((api) => (
+                <MenuItem
+                  key={`ext-${api.id}`}
+                  onClick={() => void handleBulkEnricherPick(`external_apis:${api.id}`)}
+                >
+                  {api.label} (external)
+                </MenuItem>
+              ))}
+          </Menu>
           <Button
             size="small"
             variant="outlined"
@@ -586,7 +887,18 @@ const InvestigationDetailPage = () => {
       )}
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+        <Alert
+          severity="error"
+          sx={{ mb: 2 }}
+          onClose={() => setError(null)}
+          action={
+            error === BULK_ENRICHER_MIXED_TYPES_ERROR && keepSubdomainsOnlyOffered ? (
+              <Button color="inherit" size="small" onClick={() => handleKeepSubdomainsOnly()}>
+                Залишити сабдомени
+              </Button>
+            ) : undefined
+          }
+        >
           {error}
         </Alert>
       )}
@@ -626,6 +938,45 @@ const InvestigationDetailPage = () => {
 
       <Grid container spacing={2}>
         <Grid item xs={12} md={9}>
+          {enricherProgress && (
+            <Paper
+              elevation={0}
+              variant="outlined"
+              sx={{
+                mb: 1.5,
+                p: 1.5,
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 1.5,
+                bgcolor: 'action.hover',
+              }}
+            >
+              <CircularProgress size={26} thickness={5} sx={{ flexShrink: 0, mt: 0.25 }} />
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography variant="body2" fontWeight={600}>
+                  Йде збагачення
+                </Typography>
+                <Typography variant="body2" color="text.secondary" noWrap title={enricherProgress.label}>
+                  {enricherProgress.label}
+                </Typography>
+                {enricherProgress.total > 1 ? (
+                  <Box sx={{ mt: 1 }}>
+                    <LinearProgress
+                      variant="determinate"
+                      value={Math.min(
+                        100,
+                        (100 * enricherProgress.done) / enricherProgress.total
+                      )}
+                      sx={{ borderRadius: 1, height: 8 }}
+                    />
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                      {enricherProgress.done} / {enricherProgress.total}
+                    </Typography>
+                  </Box>
+                ) : null}
+              </Box>
+            </Paper>
+          )}
           <InvestigationCanvas
             ref={canvasRef}
             nodes={nodes}
@@ -712,8 +1063,18 @@ const InvestigationDetailPage = () => {
         <DialogTitle>Active Enricher Warning</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            This enricher will directly contact the target (port scan, SSL handshake, or HTTP
-            requests). It may trigger IDS/IPS alerts on the target&apos;s side. Continue?
+            {confirmActiveDialog?.mode === 'bulk' ? (
+              <>
+                This enricher will directly contact each of the {confirmActiveDialog.targets.length}{' '}
+                selected targets one after another (port scan, SSL handshake, or HTTP requests). It may
+                trigger IDS/IPS alerts. Continue?
+              </>
+            ) : (
+              <>
+                This enricher will directly contact the target (port scan, SSL handshake, or HTTP
+                requests). It may trigger IDS/IPS alerts on the target&apos;s side. Continue?
+              </>
+            )}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
@@ -724,14 +1085,22 @@ const InvestigationDetailPage = () => {
             variant="contained"
             color="warning"
             onClick={() => {
-              if (confirmActiveDialog) {
-                void runEnricherImpl(
-                  confirmActiveDialog.enricherName,
-                  confirmActiveDialog.nodeType,
-                  confirmActiveDialog.nodeValue
-                )
-                setConfirmActiveDialog(null)
+              const pending = confirmActiveDialog
+              if (!pending) return
+              setConfirmActiveDialog(null)
+              if (pending.mode === 'bulk') {
+                void (async () => {
+                  setEnricherLoading(true)
+                  setError(null)
+                  try {
+                    await runBulkEnricherOnTargets(pending.enricherName, pending.targets)
+                  } finally {
+                    setEnricherLoading(false)
+                  }
+                })()
+                return
               }
+              void runEnricherImpl(pending.enricherName, pending.nodeType, pending.nodeValue)
             }}
             sx={{ textTransform: 'none' }}
           >

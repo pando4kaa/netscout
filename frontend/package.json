@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "postinstall": "patch-package",
     "dev": "vite",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
@@ -17,12 +18,12 @@
     "@mui/material": "^5.15.0",
     "@tanstack/react-query": "^5.0.0",
     "axios": "^1.6.0",
-    "cytoscape": "^3.27.0",
-    "cytoscape-lasso": "^1.1.4",
+    "cytoscape": "3.33.1",
     "date-fns": "^3.0.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.0",
     "leaflet": "^1.9.4",
+    "point-in-polygon": "^1.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-leaflet": "^4.2.1",
@@ -41,6 +42,7 @@
     "eslint": "^8.45.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.3",
+    "patch-package": "^8.0.1",
     "typescript": "^5.0.2",
     "vite": "^5.0.0"
   }

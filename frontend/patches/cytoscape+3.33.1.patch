@@ -1,0 +1,26 @@
+diff --git a/node_modules/cytoscape/dist/cytoscape.cjs.js b/node_modules/cytoscape/dist/cytoscape.cjs.js
+index 7a9e1a9..eefaf3c 100644
+--- a/node_modules/cytoscape/dist/cytoscape.cjs.js
++++ b/node_modules/cytoscape/dist/cytoscape.cjs.js
+@@ -25640,7 +25640,7 @@ BRp$3.load = function () {
+     }
+   };
+   var isMultSelKeyDown = function isMultSelKeyDown(e) {
+-    return e.shiftKey || e.metaKey || e.ctrlKey; // maybe e.altKey
++    return e.metaKey || e.ctrlKey; // Shift reserved for lasso / subtree select (NetScout)
+   };
+   var allowPanningPassthrough = function allowPanningPassthrough(down, downs) {
+     var allowPassthrough = true;
+diff --git a/node_modules/cytoscape/dist/cytoscape.esm.mjs b/node_modules/cytoscape/dist/cytoscape.esm.mjs
+index 9adca90..23335e6 100644
+--- a/node_modules/cytoscape/dist/cytoscape.esm.mjs
++++ b/node_modules/cytoscape/dist/cytoscape.esm.mjs
+@@ -25638,7 +25638,7 @@ BRp$3.load = function () {
+     }
+   };
+   var isMultSelKeyDown = function isMultSelKeyDown(e) {
+-    return e.shiftKey || e.metaKey || e.ctrlKey; // maybe e.altKey
++    return e.metaKey || e.ctrlKey; // Shift reserved for lasso / subtree select (NetScout)
+   };
+   var allowPanningPassthrough = function allowPanningPassthrough(down, downs) {
+     var allowPassthrough = true;

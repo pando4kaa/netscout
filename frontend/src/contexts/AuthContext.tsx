@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
 import { setAuthToken } from '../services/api'
+import { isJwtExpired } from '../utils/jwt'
 
 const TOKEN_KEY = 'netscout_token'
 const USER_KEY = 'netscout_user'
@@ -33,12 +34,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const storedUser = localStorage.getItem(USER_KEY)
     if (stored && storedUser) {
       try {
-        setToken(stored)
-        setUser(JSON.parse(storedUser))
-        setAuthToken(stored)
+        if (isJwtExpired(stored)) {
+          localStorage.removeItem(TOKEN_KEY)
+          localStorage.removeItem(USER_KEY)
+          setAuthToken(null)
+        } else {
+          setToken(stored)
+          setUser(JSON.parse(storedUser))
+          setAuthToken(stored)
+        }
       } catch {
         localStorage.removeItem(TOKEN_KEY)
         localStorage.removeItem(USER_KEY)
+        setAuthToken(null)
       }
     }
     setIsLoading(false)
