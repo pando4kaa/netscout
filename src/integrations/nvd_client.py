@@ -70,7 +70,32 @@ def _extract_cvss(metrics: Dict[str, Any]) -> Optional[float]:
     return None
 
 
-def search_cves(product: str, version: str, limit: int = 5) -> Dict[str, Any]:
+def _parse_cves_from_payload(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Convert NVD response payload to compact CVE entries."""
+    cves: List[Dict[str, Any]] = []
+    for item in payload.get("vulnerabilities") or []:
+        cve = item.get("cve") or {}
+        cve_id = cve.get("id")
+        if not cve_id:
+            continue
+        cves.append({"id": cve_id, "cvss": _extract_cvss(cve.get("metrics") or {})})
+    return cves
+
+
+def _fetch_cve_by_id(cve_id: str) -> Dict[str, Any]:
+    """Fetch a single CVE by exact ID from NVD."""
+    response = requests.get(
+        NVD_API_URL,
+        params={"cveId": cve_id},
+        headers={"apiKey": NVD_API_KEY, "User-Agent": USER_AGENT},
+        timeout=HTTP_TIMEOUT,
+    )
+    if response.status_code != 200:
+        return {"cves": [], "error": f"NVD HTTP {response.status_code}"}
+    return {"cves": _parse_cves_from_payload(response.json())}
+
+
+def search_cves(product: str, version: str, limit: int = 5, cve_ids: Optional[List[str]] = None) -> Dict[str, Any]:
     """
     Search NVD for product/version and return compact CVE/CVSS data.
 
@@ -78,46 +103,62 @@ def search_cves(product: str, version: str, limit: int = 5) -> Dict[str, Any]:
     """
     product = (product or "").strip().lower()
     version = (version or "").strip()
+    cve_ids = list(dict.fromkeys([cve for cve in (cve_ids or []) if cve]))
     if not product or not version:
         return {"enabled": False, "cves": [], "cvss_max": None}
     if not NVD_API_KEY:
         return {"enabled": False, "cves": [], "cvss_max": None}
 
-    cache_key = f"nvd:v1:{product}:{version}:{limit}"
+    cache_key = f"nvd:v3:{product}:{version}:{limit}:{','.join(cve_ids)}"
     cached = _cache_get(cache_key)
     if cached is not None:
         return cached
 
     try:
+        if cve_ids:
+            all_cves: List[Dict[str, Any]] = []
+            errors: List[str] = []
+            for cve_id in cve_ids[:10]:
+                item = _fetch_cve_by_id(cve_id)
+                all_cves.extend(item.get("cves") or [])
+                if item.get("error"):
+                    errors.append(f"{cve_id}: {item['error']}")
+
+            cvss_values = [cve["cvss"] for cve in all_cves if isinstance(cve.get("cvss"), (int, float))]
+            result = {
+                "enabled": True,
+                "cves": all_cves,
+                "cvss_max": max(cvss_values) if cvss_values else None,
+                "error": "; ".join(errors) if errors else None,
+            }
+            if all_cves or result["cvss_max"] is not None:
+                _cache_set(cache_key, result)
+            return result
+
+        # NVD 2.0 expects apiKey in the HTTP header. Passing apiKey as a query
+        # parameter produces "Invalid parameter: apiKey" responses.
         response = requests.get(
             NVD_API_URL,
-            params={"keywordSearch": f"{product} {version}", "resultsPerPage": limit},
+            params={
+                "keywordSearch": f"{product} {version}",
+                "resultsPerPage": limit,
+            },
             headers={"apiKey": NVD_API_KEY, "User-Agent": USER_AGENT},
             timeout=HTTP_TIMEOUT,
         )
         if response.status_code != 200:
             return {"enabled": True, "cves": [], "cvss_max": None, "error": f"NVD HTTP {response.status_code}"}
 
-        payload = response.json()
-        cves: List[Dict[str, Any]] = []
-        cvss_values: List[float] = []
-
-        for item in payload.get("vulnerabilities") or []:
-            cve = item.get("cve") or {}
-            cve_id = cve.get("id")
-            if not cve_id:
-                continue
-            cvss = _extract_cvss(cve.get("metrics") or {})
-            if cvss is not None:
-                cvss_values.append(cvss)
-            cves.append({"id": cve_id, "cvss": cvss})
+        cves = _parse_cves_from_payload(response.json())
+        cvss_values = [cve["cvss"] for cve in cves if isinstance(cve.get("cvss"), (int, float))]
 
         result = {
             "enabled": True,
             "cves": cves,
             "cvss_max": max(cvss_values) if cvss_values else None,
         }
-        _cache_set(cache_key, result)
+        if cves or result["cvss_max"] is not None:
+            _cache_set(cache_key, result)
         return result
     except Exception as exc:
         return {"enabled": True, "cves": [], "cvss_max": None, "error": str(exc)}

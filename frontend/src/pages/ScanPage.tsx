@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import {
   Container,
   Box,
@@ -7,8 +7,10 @@ import {
   Tabs,
   Tab,
   Paper,
+  Button,
 } from '@mui/material'
 import { useNavigate } from 'react-router-dom'
+import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined'
 import DashboardIcon from '@mui/icons-material/Dashboard'
 import DnsIcon from '@mui/icons-material/Dns'
 import InfoIcon from '@mui/icons-material/Info'
@@ -64,23 +66,43 @@ const ScanPage = () => {
   const { currentScan } = useScanStore()
   const navigate = useNavigate()
 
-  useEffect(() => {
-    if (!currentScan) {
-      navigate('/')
-    }
-  }, [currentScan, navigate])
-
   const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue)
   }
 
   if (!currentScan) {
     return (
-      <Container maxWidth="xl">
-        <Box sx={{ py: 4 }}>
-          <Alert severity="info">
-            No scan results available. Please start a scan from the home page.
+      <Container maxWidth="sm">
+        <Box
+          sx={{
+            py: 8,
+            px: 2,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            textAlign: 'center',
+            gap: 2,
+          }}
+        >
+          <Typography variant="h4" component="h1" sx={{ fontWeight: 600 }}>
+            No scan results yet
+          </Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 480 }}>
+            To view results here, go to the home page, enter a domain, and start a scan.
+            When it finishes, you will be brought to this page with the data.
+          </Typography>
+          <Alert severity="info" sx={{ width: '100%', textAlign: 'left' }}>
+            If you opened this tab directly or refreshed without an active scan in progress, return to the home page.
           </Alert>
+          <Button
+            variant="contained"
+            size="large"
+            startIcon={<HomeOutlinedIcon />}
+            onClick={() => navigate('/')}
+            sx={{ mt: 1 }}
+          >
+            Home — enter a domain
+          </Button>
         </Box>
       </Container>
     )

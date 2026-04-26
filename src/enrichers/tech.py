@@ -16,6 +16,22 @@ from src.enrichers.base import AbstractEnricher
 from src.core.models import TechStack, SecurityHeadersInfo
 
 
+TECH_SUBDOMAIN_LIMIT = 100
+TECH_PRIORITY_PREFIXES = {
+    "account",
+    "accounts",
+    "admin",
+    "api",
+    "app",
+    "auth",
+    "login",
+    "portal",
+    "sso",
+    "vpn",
+    "www",
+}
+
+
 def _parse_meta_tags(html: str) -> tuple[Optional[str], Optional[str]]:
     """Extract meta generator and CMS hints from HTML."""
     generator = None
@@ -168,6 +184,12 @@ def _is_mail_subdomain(url: str) -> bool:
         return False
 
 
+def _priority_score(subdomain: str) -> tuple[int, str]:
+    """Prioritize likely user-facing services before applying the scan limit."""
+    prefix = subdomain.lower().split(".")[0]
+    return (0 if prefix in TECH_PRIORITY_PREFIXES else 1, subdomain)
+
+
 async def _fetch_tech_stack_async(urls: List[str], verify_ssl: bool = True) -> Dict[str, Any]:
     """Fetch tech stack for multiple URLs in parallel."""
     tech_stack: Dict[str, Any] = {}
@@ -196,7 +218,8 @@ class TechEnricher(AbstractEnricher):
         urls_to_check.append(base)
 
         if context and context.get("subdomains"):
-            for sub in context["subdomains"][:10]:
+            candidates = sorted(context["subdomains"], key=_priority_score)[:TECH_SUBDOMAIN_LIMIT]
+            for sub in candidates:
                 url = f"https://{sub}"
                 if not _is_mail_subdomain(url):
                     urls_to_check.append(url)

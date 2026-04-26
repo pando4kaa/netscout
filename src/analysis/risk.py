@@ -11,6 +11,7 @@ from src.config.settings import HTTP_TIMEOUT, USER_AGENT
 from src.analysis.asset_weight import asset_weight, classify_asset, normalize_asset_host
 from src.integrations.nvd_client import search_cves
 
+
 # Known vulnerable versions: (software, version) -> CVE or description
 OUTDATED_VERSIONS: List[Tuple[str, str, str]] = [
     ("nginx", "1.18.0", "CVE-2022-41741, CVE-2022-41742"),
@@ -163,6 +164,11 @@ def _parse_server_version(server: str) -> Optional[Tuple[str, str]]:
     return None
 
 
+def _extract_cve_ids(text: str) -> List[str]:
+    """Extract CVE identifiers from local vulnerability descriptions."""
+    return list(dict.fromkeys(re.findall(r"CVE-\d{4}-\d{4,7}", text or "", flags=re.I)))
+
+
 def detect_outdated_tech(tech_stack: Optional[Dict[str, Any]]) -> List[Alert]:
     """Detect outdated/vulnerable technology versions from Server headers."""
     alerts: List[Alert] = []
@@ -181,7 +187,8 @@ def detect_outdated_tech(tech_stack: Optional[Dict[str, Any]]) -> List[Alert]:
         software, version = parsed
         for out_soft, out_ver, desc in OUTDATED_VERSIONS:
             if out_soft in software and version.strip() == out_ver:
-                nvd = search_cves(software, version)
+                cve_ids = _extract_cve_ids(desc)
+                nvd = search_cves(software, version, cve_ids=cve_ids)
                 details = {"server": server, "software": software, "version": version}
                 if nvd.get("enabled"):
                     details.update(

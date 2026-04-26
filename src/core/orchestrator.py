@@ -3,7 +3,7 @@ Scan Orchestrator — coordinates pipeline and produces ScanResult.
 """
 
 from datetime import datetime
-from typing import Any, Callable, Dict, Optional
+from typing import Callable, Optional
 
 from src.core.models import (
     ScanResult,
