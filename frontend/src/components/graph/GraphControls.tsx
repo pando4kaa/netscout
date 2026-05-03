@@ -312,13 +312,24 @@ const GraphControls = ({ cy, onLayoutChange, graphWrapperRef }: GraphControlsPro
   }
 
   return (
-    <Paper sx={{ p: 2, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2 }}>
+    <Paper
+      sx={{
+        p: 2,
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: 2,
+        minWidth: 0,
+        maxWidth: '100%',
+        boxSizing: 'border-box',
+      }}
+    >
       {/* Search */}
-      <Box sx={{ minWidth: 220 }}>
+      <Box sx={{ flex: '1 1 200px', minWidth: 0, maxWidth: '100%' }}>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
           {t('common.search')}
         </Typography>
-        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', minWidth: 0, width: '100%' }}>
           <TextField
             size="small"
             placeholder={t('investigations.searchNode')}
@@ -332,40 +343,46 @@ const GraphControls = ({ cy, onLayoutChange, graphWrapperRef }: GraphControlsPro
                 </InputAdornment>
               ),
             }}
-            sx={{ flex: 1, '& .MuiInputBase-root': { bgcolor: 'background.paper' } }}
+            sx={{
+              flex: 1,
+              minWidth: 0,
+              '& .MuiInputBase-root': { bgcolor: 'background.paper' },
+            }}
           />
-          <Button size="small" variant="contained" onClick={handleSearch}>
+          <Button size="small" variant="contained" onClick={handleSearch} sx={{ flexShrink: 0 }}>
             {t('results.find')}
           </Button>
         </Box>
       </Box>
 
-      <Divider orientation="vertical" flexItem />
+      <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
 
       {/* Layout buttons */}
-      <Box>
+      <Box sx={{ minWidth: 0, flex: '0 1 auto', maxWidth: '100%' }}>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
           {t('results.layout')}
         </Typography>
-        <ButtonGroup variant="outlined" size="small">
-          {LAYOUTS.map((layout) => (
-            <Tooltip key={layout.name} title={t(`results.layouts.${layout.labelKey}`)}>
-              <Button
-                onClick={() => handleLayoutChange(layout.name, layout.options)}
-                variant={activeLayout === layout.name ? 'contained' : 'outlined'}
-                sx={{ minWidth: 40 }}
-              >
-                {layout.icon}
-              </Button>
-            </Tooltip>
-          ))}
-        </ButtonGroup>
+        <Box sx={{ overflowX: 'auto', maxWidth: '100%', pb: 0.25, mx: -0.25, px: 0.25 }}>
+          <ButtonGroup variant="outlined" size="small" sx={{ width: 'max-content' }}>
+            {LAYOUTS.map((layout) => (
+              <Tooltip key={layout.name} title={t(`results.layouts.${layout.labelKey}`)}>
+                <Button
+                  onClick={() => handleLayoutChange(layout.name, layout.options)}
+                  variant={activeLayout === layout.name ? 'contained' : 'outlined'}
+                  sx={{ minWidth: 40, px: 1 }}
+                >
+                  {layout.icon}
+                </Button>
+              </Tooltip>
+            ))}
+          </ButtonGroup>
+        </Box>
       </Box>
 
-      <Divider orientation="vertical" flexItem />
+      <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
 
       {/* Zoom controls */}
-      <Box sx={{ minWidth: 140 }}>
+      <Box sx={{ minWidth: 0, flex: '0 1 auto', maxWidth: '100%' }}>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
           {t('results.zoom')}
         </Typography>
@@ -392,40 +409,42 @@ const GraphControls = ({ cy, onLayoutChange, graphWrapperRef }: GraphControlsPro
         </Box>
       </Box>
 
-      <Divider orientation="vertical" flexItem />
+      <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
 
       {/* View controls */}
-      <Box>
+      <Box sx={{ minWidth: 0, maxWidth: '100%' }}>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
           {t('results.view')}
         </Typography>
-        <ButtonGroup variant="outlined" size="small">
-          {graphWrapperRef && (
-            <Tooltip title={isFullscreen ? t('results.exitFullscreen') : t('results.fullscreenMode')}>
-              <Button onClick={handleFullscreen}>
-                {isFullscreen ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />}
+        <Box sx={{ overflowX: 'auto', maxWidth: '100%', pb: 0.25, mx: -0.25, px: 0.25 }}>
+          <ButtonGroup variant="outlined" size="small" sx={{ width: 'max-content' }}>
+            {graphWrapperRef && (
+              <Tooltip title={isFullscreen ? t('results.exitFullscreen') : t('results.fullscreenMode')}>
+                <Button onClick={handleFullscreen} sx={{ minWidth: 40 }}>
+                  {isFullscreen ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />}
+                </Button>
+              </Tooltip>
+            )}
+            <Tooltip title={t('results.fitToScreen')}>
+              <Button onClick={handleFit} sx={{ minWidth: 40 }}>
+                <FitScreenIcon fontSize="small" />
               </Button>
             </Tooltip>
-          )}
-          <Tooltip title={t('results.fitToScreen')}>
-            <Button onClick={handleFit}>
-              <FitScreenIcon fontSize="small" />
-            </Button>
-          </Tooltip>
-          <Tooltip title={t('results.center')}>
-            <Button onClick={handleCenter}>
-              <CenterFocusStrongIcon fontSize="small" />
-            </Button>
-          </Tooltip>
-          <Tooltip title={t('results.resetView')}>
-            <Button onClick={handleReset}>
-              <RestartAltIcon fontSize="small" />
-            </Button>
-          </Tooltip>
-        </ButtonGroup>
+            <Tooltip title={t('results.center')}>
+              <Button onClick={handleCenter} sx={{ minWidth: 40 }}>
+                <CenterFocusStrongIcon fontSize="small" />
+              </Button>
+            </Tooltip>
+            <Tooltip title={t('results.resetView')}>
+              <Button onClick={handleReset} sx={{ minWidth: 40 }}>
+                <RestartAltIcon fontSize="small" />
+              </Button>
+            </Tooltip>
+          </ButtonGroup>
+        </Box>
       </Box>
 
-      <Divider orientation="vertical" flexItem />
+      <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
 
       {/* Node type filter */}
       <Box>
@@ -450,7 +469,7 @@ const GraphControls = ({ cy, onLayoutChange, graphWrapperRef }: GraphControlsPro
         </FormGroup>
       </Box>
 
-      <Divider orientation="vertical" flexItem />
+      <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />
 
       {/* Export */}
       <Box>

@@ -338,7 +338,8 @@ const InvestigationCanvas = forwardRef<InvestigationCanvasHandle, InvestigationC
         elevation={0}
         sx={{
           width: '100%',
-          height: '560px',
+          minHeight: { xs: 260, md: 560 },
+          height: { xs: 'min(45vh, 400px)', sm: 'min(50vh, 480px)', md: '560px' },
           bgcolor: '#fafafa',
           backgroundImage: 'radial-gradient(circle, #e0e0e0 1px, transparent 1px)',
           backgroundSize: '20px 20px',

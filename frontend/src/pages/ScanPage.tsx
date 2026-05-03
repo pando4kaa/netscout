@@ -57,7 +57,7 @@ function TabPanel(props: TabPanelProps) {
       aria-labelledby={`scan-tab-${index}`}
       {...other}
     >
-      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
+      {value === index && <Box sx={{ py: { xs: 2, sm: 3 }, px: { xs: 0.5, sm: 0 } }}>{children}</Box>}
     </div>
   )
 }
@@ -89,8 +89,8 @@ const ScanPage = () => {
       <Container maxWidth="sm">
         <Box
           sx={{
-            py: 8,
-            px: 2,
+            py: { xs: 4, sm: 8 },
+            px: { xs: 1, sm: 2 },
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -98,7 +98,7 @@ const ScanPage = () => {
             gap: 2,
           }}
         >
-          <Typography variant="h4" component="h1" sx={{ fontWeight: 600 }}>
+          <Typography variant="h4" component="h1" sx={{ fontWeight: 600, typography: { xs: 'h5', sm: 'h4' } }}>
             {t('scan.noResultsTitle')}
           </Typography>
           <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 480 }}>
@@ -122,38 +122,58 @@ const ScanPage = () => {
   }
 
   return (
-    <Container maxWidth="xl">
-      <Box sx={{ py: 3 }}>
+    <Container maxWidth="xl" disableGutters sx={{ px: { xs: 0, sm: 2, md: 3 } }}>
+      <Box sx={{ py: { xs: 2, md: 3 } }}>
         {/* Header */}
-        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
-          <Box>
-            <Typography variant="h4" component="h1" gutterBottom>
+        <Box
+          sx={{
+            mb: { xs: 2, md: 3 },
+            display: 'flex',
+            flexDirection: { xs: 'column', sm: 'row' },
+            justifyContent: 'space-between',
+            alignItems: { xs: 'stretch', sm: 'flex-start' },
+            gap: 2,
+          }}
+        >
+          <Box sx={{ minWidth: 0 }}>
+            <Typography
+              variant="h4"
+              component="h1"
+              gutterBottom
+              sx={{ wordBreak: 'break-word', typography: { xs: 'h5', sm: 'h4' } }}
+            >
               {currentScan.target_domain}
             </Typography>
-            <Typography variant="body1" color="text.secondary">
+            <Typography variant="body1" color="text.secondary" sx={{ fontSize: { xs: '0.9rem', sm: '1rem' } }}>
               {t('scan.completedSummary', { count: safeScan.subdomains?.length || 0 })}
               {safeScan.scan_date && (
                 <> {t('scan.completedDate', { date: formatDateTime(safeScan.scan_date) })}</>
               )}
             </Typography>
           </Box>
-          <ExportButtons scanResults={safeScan} />
+          <Box sx={{ alignSelf: { xs: 'stretch', sm: 'flex-start' } }}>
+            <ExportButtons scanResults={safeScan} />
+          </Box>
         </Box>
 
         {/* Tabs */}
-        <Paper sx={{ mb: 2 }}>
+        <Paper sx={{ mb: 2, overflow: 'hidden' }}>
           <Tabs
             value={tabValue}
             onChange={handleTabChange}
             variant="scrollable"
             scrollButtons="auto"
+            allowScrollButtonsMobile
             sx={{
               borderBottom: 1,
               borderColor: 'divider',
               '& .MuiTab-root': {
-                minHeight: 64,
+                minHeight: { xs: 48, sm: 56, md: 64 },
                 textTransform: 'none',
+                px: { xs: 1, sm: 1.5 },
+                fontSize: { xs: '0.8rem', sm: '0.875rem' },
               },
+              '& .MuiTab-iconWrapper': { mr: { xs: 0.5, sm: 1 } },
             }}
           >
             <Tab

@@ -12,10 +12,13 @@ export const helpTopicsEn = {
   },
   risk_score: {
     title: 'Risk Score',
-    what: 'A number from 0 to 100 showing the overall risk level for the domain. Calculated by weights: Subdomain Takeover (+10), open DB ports (+5), expired SSL (+5), outdated tech (+1–5).',
-    whyImportant: 'Lets you understand how secure a domain is at a glance. No need to review all details separately.',
-    whyBad: 'A high score means multiple issues at once. This may attract pentesters or attackers.',
-    tips: '≥20 — high risk, urgent action needed. 10–19 — medium, plan fixes. <10 — low, but still check alerts.',
+    what:
+      'On the scan overview, the headline number is an aggregated score: with grouped risk findings it is a 0–100 model (likelihood, impact, confidence); otherwise a composite sum from alerts. Separately, each alert adds a simple severity weight in code — high +10, medium +5, low +1 (e.g. open MySQL is high; suspicious takeover-style CNAME is medium; outdated stack is medium). That weighted sum powers the small dashboard card, can exceed 100, and may not match the overview headline.',
+    whyImportant:
+      'You get a quick priority signal: the overview headline and the dashboard sum complement each other, while alerts and the risk-groups section carry the details.',
+    whyBad: 'High values mean multiple issues at once. That can attract security researchers or attackers.',
+    tips:
+      'Dashboard card color uses the simple weight sum: ≥20 red, 10–19 orange, <10 green. On the overview, use the LOW/MEDIUM/HIGH/CRITICAL label when shown and the risk groups section below.',
   },
   subdomains: {
     title: 'Subdomains',

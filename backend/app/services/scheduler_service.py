@@ -96,12 +96,25 @@ def remove_scheduled_scan(db: Session, schedule_id: int, user_id: int) -> bool:
     return True
 
 
-def toggle_scheduled_scan(db: Session, schedule_id: int, enabled: bool, user_id: int) -> Optional[ScheduledScan]:
-    """Enable or disable a scheduled scan (only owner)."""
+def update_scheduled_scan(
+    db: Session,
+    schedule_id: int,
+    user_id: int,
+    *,
+    domain: Optional[str] = None,
+    interval_hours: Optional[int] = None,
+    enabled: Optional[bool] = None,
+) -> Optional[ScheduledScan]:
+    """Update domain, interval, and/or enabled flag; resync APScheduler job (only owner)."""
     s = db.query(ScheduledScan).filter(ScheduledScan.id == schedule_id, ScheduledScan.user_id == user_id).first()
     if not s:
         return None
-    s.enabled = enabled
+    if domain is not None:
+        s.domain = domain
+    if interval_hours is not None:
+        s.interval_hours = max(1, min(168, int(interval_hours)))
+    if enabled is not None:
+        s.enabled = enabled
     db.commit()
     db.refresh(s)
     scheduler = get_scheduler()
@@ -110,7 +123,7 @@ def toggle_scheduled_scan(db: Session, schedule_id: int, enabled: bool, user_id:
             scheduler.remove_job(f"sched_{schedule_id}")
         except Exception:
             pass
-        if enabled:
+        if s.enabled:
             scheduler.add_job(
                 _run_scheduled_scan,
                 trigger=IntervalTrigger(hours=s.interval_hours),
@@ -118,6 +131,11 @@ def toggle_scheduled_scan(db: Session, schedule_id: int, enabled: bool, user_id:
                 args=[s.id, s.domain, s.user_id],
             )
     return s
+
+
+def toggle_scheduled_scan(db: Session, schedule_id: int, enabled: bool, user_id: int) -> Optional[ScheduledScan]:
+    """Enable or disable a scheduled scan (only owner)."""
+    return update_scheduled_scan(db, schedule_id, user_id, enabled=enabled)
 
 
 def list_scheduled_scans(db: Session, user_id: int) -> List[dict]:

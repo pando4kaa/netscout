@@ -7,7 +7,7 @@ import json
 from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user_optional, get_current_user_required
@@ -17,7 +17,7 @@ from app.services.scan_service import run_scan, get_scan, get_scan_history, comp
 from app.services.scheduler_service import (
     add_scheduled_scan,
     remove_scheduled_scan,
-    toggle_scheduled_scan,
+    update_scheduled_scan,
     list_scheduled_scans,
 )
 
@@ -84,8 +84,16 @@ class ScheduleRequest(BaseModel):
     interval_hours: int = 24
 
 
-class ScheduleToggleRequest(BaseModel):
-    enabled: bool
+class ScheduleUpdateRequest(BaseModel):
+    enabled: Optional[bool] = None
+    domain: Optional[str] = None
+    interval_hours: Optional[int] = None
+
+    @model_validator(mode="after")
+    def require_at_least_one_field(self):
+        if self.enabled is None and self.domain is None and self.interval_hours is None:
+            raise ValueError("At least one of enabled, domain, interval_hours is required")
+        return self
 
 
 @router.post("/scan")
@@ -249,15 +257,39 @@ async def delete_schedule(
 @router.patch("/schedules/{schedule_id}")
 async def update_schedule(
     schedule_id: int,
-    request: ScheduleToggleRequest,
+    request: ScheduleUpdateRequest,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user_required),
 ):
-    """Enable or disable a scheduled scan (auth required)."""
-    s = toggle_scheduled_scan(db, schedule_id, request.enabled, user.id)
+    """Update scheduled scan: enable/disable, domain, and/or interval (auth required)."""
+    from src.utils.validators import normalize_domain
+
+    domain_norm: Optional[str] = None
+    if request.domain is not None:
+        try:
+            domain_norm = normalize_domain(request.domain)
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    s = update_scheduled_scan(
+        db,
+        schedule_id,
+        user.id,
+        domain=domain_norm if request.domain is not None else None,
+        interval_hours=request.interval_hours,
+        enabled=request.enabled,
+    )
     if s is None:
         return {"success": False, "error": "Not found"}
-    return {"success": True, "enabled": s.enabled}
+    return {
+        "success": True,
+        "schedule": {
+            "id": s.id,
+            "domain": s.domain,
+            "interval_hours": s.interval_hours,
+            "enabled": s.enabled,
+        },
+    }
 
 
 @router.websocket("/ws/scan")

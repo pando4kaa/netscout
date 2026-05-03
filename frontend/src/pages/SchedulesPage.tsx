@@ -19,10 +19,13 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
+  DialogContentText,
   DialogActions,
+  Stack,
 } from '@mui/material'
 import DeleteIcon from '@mui/icons-material/Delete'
 import AddIcon from '@mui/icons-material/Add'
+import EditIcon from '@mui/icons-material/Edit'
 import ScheduleIcon from '@mui/icons-material/Schedule'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -46,9 +49,11 @@ const SchedulesPage = () => {
   const [schedules, setSchedules] = useState<ScheduleItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [dialogOpen, setDialogOpen] = useState(false)
+  const [scheduleFormOpen, setScheduleFormOpen] = useState(false)
+  const [editingId, setEditingId] = useState<number | null>(null)
   const [newDomain, setNewDomain] = useState('')
   const [newInterval, setNewInterval] = useState(24)
+  const [deleteTarget, setDeleteTarget] = useState<ScheduleItem | null>(null)
 
   const loadSchedules = useCallback(async () => {
     try {
@@ -70,25 +75,56 @@ const SchedulesPage = () => {
     }
   }, [isAuthenticated, loadSchedules])
 
-  const handleAdd = async () => {
+  const openAddDialog = () => {
+    setEditingId(null)
+    setNewDomain('')
+    setNewInterval(24)
+    setScheduleFormOpen(true)
+  }
+
+  const openEditDialog = (row: ScheduleItem) => {
+    setEditingId(row.id)
+    setNewDomain(row.domain)
+    setNewInterval(row.interval_hours)
+    setScheduleFormOpen(true)
+  }
+
+  const closeFormDialog = () => {
+    setScheduleFormOpen(false)
+    setEditingId(null)
+  }
+
+  const handleSaveSchedule = async () => {
     if (!newDomain.trim()) return
     try {
-      await scanApi.createSchedule(newDomain.trim(), newInterval)
-      setDialogOpen(false)
+      if (editingId !== null) {
+        await scanApi.updateSchedule(editingId, {
+          domain: newDomain.trim(),
+          interval_hours: newInterval,
+        })
+      } else {
+        await scanApi.createSchedule(newDomain.trim(), newInterval)
+      }
+      closeFormDialog()
       setNewDomain('')
       setNewInterval(24)
       loadSchedules()
     } catch (err) {
-      setError(t('errors.failedToCreateSchedule'))
+      setError(
+        editingId !== null ? t('errors.failedToUpdateSchedule') : t('errors.failedToCreateSchedule')
+      )
       console.error(err)
     }
   }
 
-  const handleDelete = async (id: number) => {
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return
     try {
-      await scanApi.deleteSchedule(id)
+      await scanApi.deleteSchedule(deleteTarget.id)
+      setDeleteTarget(null)
       loadSchedules()
     } catch (err) {
+      setError(t('errors.failedToDeleteSchedule'))
       console.error(err)
     }
   }
@@ -146,14 +182,32 @@ const SchedulesPage = () => {
   return (
     <Container maxWidth="lg">
       <Box sx={{ py: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h4" component="h1">
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: { xs: 'column', sm: 'row' },
+            justifyContent: 'space-between',
+            alignItems: { xs: 'stretch', sm: 'center' },
+            gap: 2,
+            mb: 3,
+          }}
+        >
+          <Typography
+            variant="h4"
+            component="h1"
+            sx={{ minWidth: 0, pr: { sm: 2 }, typography: { xs: 'h5', sm: 'h4' } }}
+          >
             {t('schedules.title')}
           </Typography>
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => setDialogOpen(true)}
+            onClick={openAddDialog}
+            sx={{
+              alignSelf: { xs: 'stretch', sm: 'auto' },
+              flexShrink: 0,
+              whiteSpace: { sm: 'nowrap' },
+            }}
           >
             {t('schedules.addSchedule')}
           </Button>
@@ -165,7 +219,7 @@ const SchedulesPage = () => {
         )}
         {schedules.length > 0 ? (
           <TableContainer component={Paper}>
-            <Table>
+            <Table size="small" sx={{ '& td, & th': { verticalAlign: 'middle' } }}>
               <TableHead>
                 <TableRow>
                   <TableCell>{t('common.domain')}</TableCell>
@@ -188,10 +242,24 @@ const SchedulesPage = () => {
                         color="primary"
                       />
                     </TableCell>
-                    <TableCell align="right">
-                      <IconButton size="small" onClick={() => handleDelete(row.id)} color="error">
-                        <DeleteIcon />
-                      </IconButton>
+                    <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                      <Stack direction="row" spacing={0.5} justifyContent="flex-end" alignItems="center">
+                        <IconButton
+                          size="small"
+                          onClick={() => openEditDialog(row)}
+                          aria-label={t('schedules.editSchedule')}
+                        >
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          onClick={() => setDeleteTarget(row)}
+                          color="error"
+                          aria-label={t('common.delete')}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Stack>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -204,18 +272,20 @@ const SchedulesPage = () => {
             <Typography variant="body1" color="text.secondary" gutterBottom>
               {t('schedules.empty')}
             </Typography>
-            <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setDialogOpen(true)} sx={{ mt: 2 }}>
+            <Button variant="outlined" startIcon={<AddIcon />} onClick={openAddDialog} sx={{ mt: 2 }}>
               {t('schedules.addSchedule')}
             </Button>
           </Paper>
         )}
       </Box>
 
-      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>{t('schedules.addScheduledScan')}</DialogTitle>
+      <Dialog open={scheduleFormOpen} onClose={closeFormDialog} maxWidth="xs" fullWidth>
+        <DialogTitle>
+          {editingId !== null ? t('schedules.editScheduledScan') : t('schedules.addScheduledScan')}
+        </DialogTitle>
         <DialogContent>
           <TextField
-            autoFocus
+            autoFocus={editingId === null}
             margin="dense"
             label={t('common.domain')}
             value={newDomain}
@@ -228,15 +298,32 @@ const SchedulesPage = () => {
             label={t('schedules.intervalHours')}
             type="number"
             value={newInterval}
-            onChange={(e) => setNewInterval(Math.max(1, parseInt(e.target.value) || 24))}
+            onChange={(e) => setNewInterval(Math.max(1, parseInt(e.target.value, 10) || 24))}
             fullWidth
             inputProps={{ min: 1, max: 168 }}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDialogOpen(false)}>{t('common.cancel')}</Button>
-          <Button onClick={handleAdd} variant="contained" disabled={!newDomain.trim()}>
-            {t('common.add')}
+          <Button onClick={closeFormDialog}>{t('common.cancel')}</Button>
+          <Button onClick={handleSaveSchedule} variant="contained" disabled={!newDomain.trim()}>
+            {editingId !== null ? t('common.save') : t('common.add')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(deleteTarget)} onClose={() => setDeleteTarget(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>{t('schedules.confirmDeleteTitle')}</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {deleteTarget
+              ? t('schedules.confirmDeleteBody', { domain: deleteTarget.domain })
+              : null}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteTarget(null)}>{t('common.cancel')}</Button>
+          <Button onClick={handleConfirmDelete} color="error" variant="contained">
+            {t('common.delete')}
           </Button>
         </DialogActions>
       </Dialog>

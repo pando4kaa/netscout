@@ -124,18 +124,39 @@ const NotificationsPage = () => {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-        <NotificationsActiveIcon sx={{ fontSize: 36, color: 'primary.main' }} />
-        <Box sx={{ flex: 1 }}>
-          <Typography variant="h4" fontWeight={600}>
-            {t('notifications.title')}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {t('notifications.subtitle')}
-          </Typography>
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          alignItems: { xs: 'stretch', sm: 'flex-start' },
+          gap: 2,
+          mb: 3,
+        }}
+      >
+        <Box sx={{ display: 'flex', gap: 2, minWidth: 0, flex: { sm: 1 } }}>
+          <NotificationsActiveIcon
+            sx={{ fontSize: 36, color: 'primary.main', flexShrink: 0, mt: { xs: 0, sm: 0.25 } }}
+          />
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="h4" fontWeight={600} sx={{ typography: { xs: 'h5', sm: 'h4' } }}>
+              {t('notifications.title')}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {t('notifications.subtitle')}
+            </Typography>
+          </Box>
         </Box>
         {unreadCount > 0 && (
-          <Button variant="outlined" onClick={handleMarkAllRead} size="small">
+          <Button
+            variant="outlined"
+            onClick={handleMarkAllRead}
+            size="small"
+            sx={{
+              alignSelf: { xs: 'stretch', sm: 'center' },
+              flexShrink: 0,
+              whiteSpace: { sm: 'nowrap' },
+            }}
+          >
             {t('notifications.markAllRead', { count: unreadCount })}
           </Button>
         )}

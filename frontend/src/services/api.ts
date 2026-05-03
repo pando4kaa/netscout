@@ -102,6 +102,14 @@ export const scanApi = {
     const response = await api.patch(`/schedules/${scheduleId}`, { enabled })
     return response.data
   },
+
+  updateSchedule: async (
+    scheduleId: number,
+    body: { enabled?: boolean; domain?: string; interval_hours?: number }
+  ) => {
+    const response = await api.patch(`/schedules/${scheduleId}`, body)
+    return response.data
+  },
 }
 
 export const authApi = {

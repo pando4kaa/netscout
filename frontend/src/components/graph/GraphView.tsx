@@ -48,8 +48,8 @@ function MinimapOverlay({ cy, container }: { cy: Core; container: HTMLDivElement
       elevation={2}
       sx={{
         position: 'absolute',
-        bottom: 16,
-        right: 16,
+        bottom: { xs: 8, sm: 16 },
+        right: { xs: 8, sm: 16 },
         zIndex: 10,
         width: MINIMAP_SIZE.w,
         height: MINIMAP_SIZE.h,
@@ -57,6 +57,7 @@ function MinimapOverlay({ cy, container }: { cy: Core; container: HTMLDivElement
         overflow: 'hidden',
         borderRadius: 1,
         border: '1px solid #e0e0e0',
+        display: { xs: 'none', sm: 'block' },
       }}
     >
       <Box
@@ -581,7 +582,8 @@ const GraphView = ({ data, setCyInstance }: GraphViewProps) => {
       <Paper
         sx={{
           width: '100%',
-          height: '600px',
+          minHeight: { xs: 280, md: 600 },
+          height: { xs: 'min(48vh, 440px)', sm: 'min(52vh, 520px)', md: '600px' },
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -654,10 +656,13 @@ const GraphView = ({ data, setCyInstance }: GraphViewProps) => {
       <Paper
         sx={{
           position: 'absolute',
-          top: 16,
-          left: 16,
+          top: { xs: 8, sm: 16 },
+          left: { xs: 8, sm: 16 },
           zIndex: 10,
-          p: 1.5,
+          p: { xs: 1, sm: 1.5 },
+          maxWidth: { xs: 'calc(100% - 16px)', sm: 220 },
+          maxHeight: { xs: '38vh', sm: 'none' },
+          overflow: { xs: 'auto', sm: 'visible' },
           bgcolor: 'rgba(255,255,255,0.95)',
           backdropFilter: 'blur(4px)',
           display: 'flex',
@@ -724,7 +729,8 @@ const GraphView = ({ data, setCyInstance }: GraphViewProps) => {
         elevation={0}
         sx={{
           width: '100%',
-          height: '600px',
+          minHeight: { xs: 280, md: 600 },
+          height: { xs: 'min(48vh, 440px)', sm: 'min(52vh, 520px)', md: '600px' },
           bgcolor: '#fafafa',
           backgroundImage: `
             radial-gradient(circle, #e0e0e0 1px, transparent 1px)

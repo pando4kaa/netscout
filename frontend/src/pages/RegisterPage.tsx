@@ -65,6 +65,7 @@ const RegisterPage = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
+              InputLabelProps={{ shrink: true }}
             />
             <TextField
               margin="normal"
@@ -75,6 +76,7 @@ const RegisterPage = () => {
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
               helperText={t('auth.usernameHelp')}
+              InputLabelProps={{ shrink: true }}
             />
             <TextField
               margin="normal"
@@ -86,6 +88,7 @@ const RegisterPage = () => {
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="new-password"
               helperText={t('auth.passwordHelp')}
+              InputLabelProps={{ shrink: true }}
             />
             <Button
               type="submit"
