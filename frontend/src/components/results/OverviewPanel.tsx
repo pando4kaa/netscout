@@ -29,7 +29,14 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
   const { dns_info = {}, whois_info = {}, subdomains = [], target_domain } = scanResults
   const riskBreakdown = scanResults.summary?.risk_breakdown || []
   const sortedRiskBreakdown = [...riskBreakdown].sort((a, b) => (b.contribution || 0) - (a.contribution || 0))
+  const riskGroups = scanResults.summary?.risk_groups || []
+  const sortedRiskGroups = [...riskGroups].sort((a, b) => (b.risk_score || 0) - (a.risk_score || 0))
+  const v3Score = scanResults.summary?.risk_overall
   const compositeScore = scanResults.summary?.risk_composite ?? scanResults.summary?.risk_score ?? 0
+  const displayRiskScore = v3Score ?? compositeScore
+  const displayRiskLevel = scanResults.summary?.risk_level || (displayRiskScore >= 75 ? 'CRITICAL' : displayRiskScore >= 50 ? 'HIGH' : displayRiskScore >= 25 ? 'MEDIUM' : 'LOW')
+  const hasV3Risk = v3Score !== null && v3Score !== undefined && sortedRiskGroups.length > 0
+  const riskColor = displayRiskLevel === 'CRITICAL' || displayRiskLevel === 'HIGH' ? 'error' : displayRiskLevel === 'MEDIUM' ? 'warning' : 'success'
 
   // Calculate statistics
   const totalDnsRecords =
@@ -123,15 +130,15 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
       </Grid>
 
       {/* Risk Score */}
-      {((scanResults.summary?.risk_score ?? 0) > 0 || (scanResults.summary?.risk_composite ?? 0) > 0) && (
+      {((scanResults.summary?.risk_score ?? 0) > 0 || (scanResults.summary?.risk_composite ?? 0) > 0 || (scanResults.summary?.risk_overall ?? 0) > 0) && (
         <Paper
           elevation={0}
           sx={{
             overflow: 'hidden',
-            bgcolor: compositeScore >= 20 ? '#ffebee' : '#fff8e1',
+            bgcolor: riskColor === 'error' ? '#ffebee' : riskColor === 'warning' ? '#fff8e1' : '#e8f5e9',
             borderRadius: 2,
             borderLeft: 4,
-            borderLeftColor: compositeScore >= 20 ? 'error.main' : 'warning.main',
+            borderLeftColor: `${riskColor}.main`,
           }}
         >
           <Box
@@ -147,26 +154,38 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 700, letterSpacing: 0.2 }}>
-                Risk Score
+                Overall Risk
               </Typography>
               <HelpTooltip topic="risk_score" />
             </Box>
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, ml: { sm: 'auto' } }}>
               <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.8 }}>
-                Composite
+                {hasV3Risk ? 'OWASP-adapted V3' : 'Composite'}
               </Typography>
               <Typography variant="h3" sx={{ fontWeight: 800, lineHeight: 1 }}>
-                {compositeScore.toFixed(2)}
+                {displayRiskScore.toFixed(2)}
               </Typography>
+              {hasV3Risk && (
+                <Chip
+                  label={displayRiskLevel}
+                  size="small"
+                  color={riskColor}
+                  sx={{ height: 24, fontSize: '0.72rem', fontWeight: 700 }}
+                />
+              )}
               <Tooltip
                 arrow
                 placement="top"
-                title="Composite risk is calculated as S × w × L, where S is technical severity (CVSS when available), w is asset criticality, and L is exploitation likelihood."
+                title={
+                  hasV3Risk
+                    ? 'V3 risk is based on grouped findings, OWASP-style Likelihood × Impact, nonlinear exposure, and evidence confidence.'
+                    : 'Composite risk is calculated as S × w × L, where S is technical severity, w is asset criticality, and L is exploitation likelihood.'
+                }
               >
                 <Chip
                   icon={<InfoOutlinedIcon sx={{ fontSize: 14 }} />}
-                  label="S × w × L"
+                  label={hasV3Risk ? 'Likelihood × Impact' : 'S × w × L'}
                   size="small"
                   variant="outlined"
                   sx={{
@@ -181,7 +200,136 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
             </Box>
           </Box>
 
-          {sortedRiskBreakdown.length > 0 && (
+          {hasV3Risk && (
+            <Box
+              sx={{
+                px: 2.25,
+                pb: 1.5,
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(4, 1fr)' },
+                gap: 1,
+              }}
+            >
+              <Paper variant="outlined" sx={{ p: 1.25, bgcolor: 'rgba(255,255,255,0.55)' }}>
+                <Typography variant="caption" color="text.secondary">Max Severity</Typography>
+                <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+                  {(scanResults.summary?.max_severity ?? 0).toFixed(1)} / 10
+                </Typography>
+              </Paper>
+              <Paper variant="outlined" sx={{ p: 1.25, bgcolor: 'rgba(255,255,255,0.55)' }}>
+                <Typography variant="caption" color="text.secondary">Exposure</Typography>
+                <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+                  {(scanResults.summary?.exposure_score ?? 0).toFixed(1)} / 10
+                </Typography>
+              </Paper>
+              <Paper variant="outlined" sx={{ p: 1.25, bgcolor: 'rgba(255,255,255,0.55)' }}>
+                <Typography variant="caption" color="text.secondary">Confidence</Typography>
+                <Typography variant="subtitle1" sx={{ fontWeight: 800, textTransform: 'capitalize' }}>
+                  {scanResults.summary?.confidence || 'unknown'}
+                </Typography>
+              </Paper>
+              <Paper variant="outlined" sx={{ p: 1.25, bgcolor: 'rgba(255,255,255,0.55)' }}>
+                <Typography variant="caption" color="text.secondary">Groups</Typography>
+                <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+                  {sortedRiskGroups.length}
+                </Typography>
+              </Paper>
+            </Box>
+          )}
+
+          {hasV3Risk ? (
+            <Accordion
+              disableGutters
+              elevation={0}
+              sx={{
+                bgcolor: 'transparent',
+                borderTop: '1px solid rgba(0,0,0,0.06)',
+                '&:before': { display: 'none' },
+              }}
+            >
+              <AccordionSummary
+                expandIcon={<ExpandMoreIcon />}
+                sx={{
+                  minHeight: 42,
+                  px: 2.25,
+                  '& .MuiAccordionSummary-content': { my: 0.75, alignItems: 'center', gap: 1 },
+                }}
+              >
+                <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 700 }}>
+                  View grouped risk contributors
+                </Typography>
+                <Chip
+                  label={sortedRiskGroups.length}
+                  size="small"
+                  sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700 }}
+                />
+              </AccordionSummary>
+              <AccordionDetails sx={{ px: 2.25, pt: 0, pb: 1.5 }}>
+                <List
+                  dense
+                  disablePadding
+                  sx={{
+                    maxHeight: 320,
+                    overflowY: 'auto',
+                    pr: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 1,
+                  }}
+                >
+                  {sortedRiskGroups.map((group) => (
+                    <ListItem
+                      key={group.group_id}
+                      disableGutters
+                      sx={{
+                        alignItems: 'flex-start',
+                        px: 1.25,
+                        py: 1,
+                        borderRadius: 1.5,
+                        bgcolor: 'rgba(255,255,255,0.55)',
+                      }}
+                    >
+                      <ListItemText
+                        primary={
+                          <Box sx={{ display: 'flex', gap: 0.75, alignItems: 'center', flexWrap: 'wrap' }}>
+                            <Chip
+                              label={group.risk_level}
+                              size="small"
+                              color={group.risk_level === 'CRITICAL' || group.risk_level === 'HIGH' ? 'error' : group.risk_level === 'MEDIUM' ? 'warning' : 'success'}
+                              sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700 }}
+                            />
+                            <Typography variant="body2" sx={{ fontWeight: 650, lineHeight: 1.35 }}>
+                              {group.title}
+                            </Typography>
+                          </Box>
+                        }
+                        secondary={
+                          <Box component="span" sx={{ display: 'block' }}>
+                            <Typography component="span" variant="caption" color="text.secondary">
+                              Risk {group.risk_score.toFixed(2)} = Likelihood {group.likelihood.toFixed(2)} × Impact {group.impact.toFixed(2)}
+                              {' '}× exposure {group.exposure_multiplier.toFixed(2)} × confidence {group.confidence_multiplier.toFixed(2)}
+                              {' '}· {group.affected_assets} affected asset{group.affected_assets === 1 ? '' : 's'}
+                            </Typography>
+                            {group.representative_targets.length > 0 && (
+                              <Typography component="span" variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+                                Targets: {group.representative_targets.slice(0, 4).join(', ')}
+                                {group.affected_assets > 4 ? ` and ${group.affected_assets - 4} more` : ''}
+                              </Typography>
+                            )}
+                            {group.recommendation && (
+                              <Typography component="span" variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+                                Recommendation: {group.recommendation}
+                              </Typography>
+                            )}
+                          </Box>
+                        }
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              </AccordionDetails>
+            </Accordion>
+          ) : sortedRiskBreakdown.length > 0 && (
             <Accordion
               disableGutters
               elevation={0}

@@ -189,12 +189,18 @@ def detect_outdated_tech(tech_stack: Optional[Dict[str, Any]]) -> List[Alert]:
             if out_soft in software and version.strip() == out_ver:
                 cve_ids = _extract_cve_ids(desc)
                 nvd = search_cves(software, version, cve_ids=cve_ids)
-                details = {"server": server, "software": software, "version": version}
+                details = {
+                    "server": server,
+                    "software": software,
+                    "version": version,
+                    "cves": [{"id": cve_id, "cvss": None} for cve_id in cve_ids],
+                }
                 if nvd.get("enabled"):
+                    cves = nvd.get("cves") or details["cves"]
                     details.update(
                         {
                             "nvd_enabled": True,
-                            "cves": nvd.get("cves") or [],
+                            "cves": cves,
                             "cvss_max": nvd.get("cvss_max"),
                             "nvd_error": nvd.get("error"),
                         }

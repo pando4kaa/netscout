@@ -4,7 +4,7 @@ Tests for asset criticality weights.
 
 import unittest
 
-from src.analysis.asset_weight import asset_weight, classify_asset, normalize_asset_host
+from src.analysis.asset_weight import asset_context, asset_weight, classify_asset, normalize_asset_host
 
 
 class TestAssetWeight(unittest.TestCase):
@@ -22,6 +22,20 @@ class TestAssetWeight(unittest.TestCase):
     def test_lower_criticality_weight(self):
         self.assertEqual(classify_asset("staging.example.com", "example.com"), "lower_criticality")
         self.assertLess(asset_weight("staging.example.com", "example.com"), 1.0)
+
+    def test_stage_token_inside_hostname_lowers_weight(self):
+        context = asset_context("accounts.smart-stage.example.com", "example.com")
+        self.assertEqual(context["asset_class"], "critical_service")
+        self.assertEqual(context["environment"], "non_production")
+        self.assertLess(
+            asset_weight("accounts.smart-stage.example.com", "example.com"),
+            asset_weight("accounts.smart.example.com", "example.com"),
+        )
+
+    def test_accounts_service_is_critical(self):
+        context = asset_context("accounts.smart.example.com", "example.com")
+        self.assertEqual(context["asset_class"], "critical_service")
+        self.assertEqual(context["business_role"], "accounts")
 
     def test_ip_weight(self):
         self.assertEqual(classify_asset("192.0.2.10", "example.com"), "ip")

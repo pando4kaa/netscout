@@ -89,6 +89,48 @@ export interface RiskBreakdownItem {
   cves?: Array<{ id: string; cvss?: number | null }>
 }
 
+export interface RiskFactorItem {
+  name: string
+  score: number
+  weight: number
+  weighted_score: number
+  rationale?: string | null
+}
+
+export interface RiskGroupItem {
+  group_id: string
+  type: string
+  title: string
+  risk_score: number
+  risk_level: RiskLevel | 'CRITICAL' | string
+  affected_assets: number
+  representative_targets: string[]
+  severity: number
+  severity_source: 'legacy' | 'cvss' | string
+  likelihood: number
+  impact: number
+  exposure_score: number
+  exposure_multiplier: number
+  confidence: 'low' | 'medium' | 'high' | 'unknown' | string
+  confidence_multiplier: number
+  factors?: {
+    likelihood?: RiskFactorItem[]
+    impact?: RiskFactorItem[]
+    confidence?: RiskFactorItem[]
+  }
+  cves?: Array<{
+    id?: string
+    cve?: string
+    cvss?: number | null
+    epss?: number | null
+    percentile?: number | null
+    kev?: boolean
+    kev_details?: Record<string, unknown>
+  }>
+  evidence?: string[]
+  recommendation?: string | null
+}
+
 export interface ScanResults {
   target_domain: string
   scan_date?: string
@@ -110,6 +152,13 @@ export interface ScanResults {
     risk_score?: number
     risk_composite?: number | null
     risk_breakdown?: RiskBreakdownItem[]
+    risk_overall?: number | null
+    risk_level?: RiskLevel | 'CRITICAL' | string | null
+    risk_method?: string | null
+    max_severity?: number | null
+    exposure_score?: number | null
+    confidence?: string | null
+    risk_groups?: RiskGroupItem[]
   }
   correlation?: {
     subdomain_count?: number

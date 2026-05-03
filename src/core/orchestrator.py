@@ -31,6 +31,7 @@ from src.enrichers.geoip import GeoipEnricher
 from src.utils.validators import is_valid_domain, normalize_domain
 from src.analysis.normalizer import normalize_domains
 from src.analysis.risk import run_risk_analysis
+from src.analysis.risk_scoring_v3 import compute_risk_v3
 from src.analysis.correlation import build_correlation_summary
 
 
@@ -94,6 +95,7 @@ def scan_domain(
         external_apis=data.get("external_apis"),
         apex_domain=domain,
     )
+    risk_v3 = compute_risk_v3(alerts, domain)
 
     correlation = build_correlation_summary(subdomains, dns_info, data.get("ssl_info"), domain)
 
@@ -136,5 +138,12 @@ def scan_domain(
             risk_score=risk_score,
             risk_composite=risk_composite,
             risk_breakdown=risk_breakdown,
+            risk_overall=risk_v3.get("risk_overall"),
+            risk_level=risk_v3.get("risk_level"),
+            risk_method=risk_v3.get("risk_method"),
+            max_severity=risk_v3.get("max_severity"),
+            exposure_score=risk_v3.get("exposure_score"),
+            confidence=risk_v3.get("confidence"),
+            risk_groups=risk_v3.get("risk_groups") or [],
         ),
     )

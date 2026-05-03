@@ -9,7 +9,7 @@ from .ssl import SslInfo, CertificateInfo
 from .port import PortScanResult, OpenPort
 from .risk import Alert, RiskLevel
 from .tech import TechStack, SecurityHeadersInfo
-from .scan import ScanResult, ScanRequest, ScanSummary, RiskBreakdownItem
+from .scan import ScanResult, ScanRequest, ScanSummary, RiskBreakdownItem, RiskFactorItem, RiskGroupItem
 
 __all__ = [
     "DNSInfo",
@@ -29,4 +29,6 @@ __all__ = [
     "ScanRequest",
     "ScanSummary",
     "RiskBreakdownItem",
+    "RiskFactorItem",
+    "RiskGroupItem",
 ]
