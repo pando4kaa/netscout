@@ -31,6 +31,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera'
 import ShareIcon from '@mui/icons-material/Share'
 import { Link, useParams, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { investigationsApi } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import {
@@ -76,8 +77,8 @@ const getEntityValueFromNode = (data: Record<string, unknown>): string => {
   return String(data.label || data.id || '')
 }
 
-const BULK_ENRICHER_MIXED_TYPES_ERROR =
-  'Select at least two nodes of the same type (domain, subdomain, or IP) for bulk enricher.'
+/** Stored in error state; displayed via `investigations.sameTypeBulk` */
+const BULK_ENRICHER_MIXED_TYPES_ERROR = '__BULK_ENRICHER_MIXED_TYPES__'
 
 /** Parallel bulk runs for passive enrichers; active scans stay sequential. */
 function bulkEnricherConcurrency(enricherName: string): number {
@@ -129,6 +130,7 @@ function enricherDisplayLabel(enricherName: string): string {
 }
 
 const InvestigationDetailPage = () => {
+  const { t } = useTranslation()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { isAuthenticated, isLoading: authLoading } = useAuth()
@@ -194,12 +196,12 @@ const InvestigationDetailPage = () => {
         }
       })
     } catch (err) {
-      setError('Failed to load investigation')
+      setError(t('errors.failedToLoadInvestigation'))
       console.error(err)
     } finally {
       setLoading(false)
     }
-  }, [id])
+  }, [id, t])
 
   const consoleStorageKey = useMemo(
     () => (id ? `investigation_console_logs_${id}` : ''),
@@ -300,15 +302,6 @@ const InvestigationDetailPage = () => {
     }
     return { targets, unifiedType }
   }, [selectedNodes, allNodes])
-
-  const bulkEnricherMenuAvailable = useMemo(() => {
-    const t = bulkSelectionInfo?.unifiedType
-    if (!t) return false
-    return (
-      (ENRICHERS_BY_ENTITY[t] || []).length > 0 ||
-      (INVESTIGATION_EXTERNAL_APIS_BY_ENTITY[t] || []).length > 0
-    )
-  }, [bulkSelectionInfo])
 
   /** Offer filter when selection mixes subdomains with non-hostname types (IP, MX, …). Domain+subdomain alone is bulk-compatible. */
   const keepSubdomainsOnlyOffered = useMemo(() => {
@@ -443,12 +436,12 @@ const InvestigationDetailPage = () => {
         const nn = result?.new_nodes?.length ?? 0
         const ne = result?.new_edges?.length ?? 0
         if (result?.status === 'failure') {
-          setError(result.error || 'Enricher failed')
+          setError(result.error || t('errors.enricherFailed'))
           addConsoleLog('ERR', `Transform ${nodeType}_to_${enricherName} failed: ${result.error}`)
         } else if (nn > 0 || ne > 0) {
           addConsoleLog('GRPH', `${nodeValue} -> ${nn} node(s), ${ne} edge(s) found.`)
         } else {
-          const msg = result?.message || 'No new data returned'
+          const msg = result?.message || t('errors.noNewDataReturned')
           addConsoleLog('INFO', msg)
         }
         addConsoleLog('CMPL', `Transform ${nodeType}_to_${enricherName} finished.`)
@@ -459,7 +452,7 @@ const InvestigationDetailPage = () => {
           }, 450)
         }
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Enricher failed'
+        const msg = err instanceof Error ? err.message : t('errors.enricherFailed')
         setError(msg)
         addConsoleLog('ERR', `Transform ${nodeType}_to_${enricherName} failed: ${msg}`)
         console.error(err)
@@ -471,7 +464,7 @@ const InvestigationDetailPage = () => {
         }
       }
     },
-    [id, loadInvestigation, addConsoleLog]
+    [id, loadInvestigation, addConsoleLog, t]
   )
 
   const runBulkEnricherOnTargets = useCallback(
@@ -588,7 +581,7 @@ const InvestigationDetailPage = () => {
       setInvestigation((prev) => (prev ? { ...prev, name: editName.trim() } : null))
       setNameEditing(false)
     } catch (err) {
-      setError('Failed to update name')
+      setError(t('errors.failedToUpdateName'))
     }
   }
 
@@ -626,9 +619,9 @@ const InvestigationDetailPage = () => {
   if (!investigation) {
     return (
       <Container maxWidth="xl" sx={{ py: 3 }}>
-        <Alert severity="error">Investigation not found</Alert>
+        <Alert severity="error">{t('errors.investigationNotFound')}</Alert>
         <Button component={Link} to="/investigations" sx={{ mt: 2, textTransform: 'none' }}>
-          Back to Investigations
+          {t('investigations.backToList')}
         </Button>
       </Container>
     )
@@ -650,10 +643,10 @@ const InvestigationDetailPage = () => {
               sx={{ minWidth: 300 }}
             />
             <Button size="small" onClick={handleSaveName} sx={{ textTransform: 'none' }}>
-              Save
+              {t('common.save')}
             </Button>
             <Button size="small" onClick={() => setNameEditing(false)} sx={{ textTransform: 'none' }}>
-              Cancel
+              {t('common.cancel')}
             </Button>
           </Box>
         ) : (
@@ -663,7 +656,7 @@ const InvestigationDetailPage = () => {
         )}
         <TextField
           size="small"
-          placeholder="Search node (IP, domain...)"
+          placeholder={t('investigations.searchNode')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -673,7 +666,7 @@ const InvestigationDetailPage = () => {
           }}
         />
         <Button size="small" variant="outlined" onClick={handleSearch} sx={{ textTransform: 'none' }}>
-          Go
+          {t('common.go')}
         </Button>
         <Button
           variant="outlined"
@@ -682,7 +675,7 @@ const InvestigationDetailPage = () => {
           onClick={(e) => setExportAnchor(e.currentTarget)}
           sx={{ textTransform: 'none' }}
         >
-          Export
+          {t('common.export')}
         </Button>
         <Menu
           anchorEl={exportAnchor}
@@ -703,7 +696,7 @@ const InvestigationDetailPage = () => {
               window.URL.revokeObjectURL(url)
             }}
           >
-            JSON
+            {t('investigations.exportJson')}
           </MenuItem>
           <MenuItem
             onClick={() => {
@@ -711,7 +704,7 @@ const InvestigationDetailPage = () => {
               investigationsApi.downloadCsv(id)
             }}
           >
-            CSV
+            {t('investigations.exportCsv')}
           </MenuItem>
           <MenuItem
             onClick={() => {
@@ -726,7 +719,7 @@ const InvestigationDetailPage = () => {
               window.URL.revokeObjectURL(url)
             }}
           >
-            GraphML
+            {t('investigations.exportGraphml')}
           </MenuItem>
         </Menu>
         <Button
@@ -735,7 +728,7 @@ const InvestigationDetailPage = () => {
           onClick={() => setAddDialogOpen(true)}
           sx={{ textTransform: 'none' }}
         >
-          Add Entity
+          {t('investigations.addEntity')}
         </Button>
         <Button
           variant="outlined"
@@ -747,12 +740,12 @@ const InvestigationDetailPage = () => {
               setShareUrl(`${base}${result.share_url}`)
               setShareDialogOpen(true)
             } catch (err) {
-              setError('Failed to create share link')
+              setError(t('errors.failedToCreateShareLink'))
             }
           }}
           sx={{ textTransform: 'none' }}
         >
-          Share
+          {t('investigations.share')}
         </Button>
         <Button
           variant="outlined"
@@ -760,7 +753,7 @@ const InvestigationDetailPage = () => {
           onClick={async () => {
             try {
               if (!canvasRef.current) {
-                setError('Graph is still loading. Try again in a moment.')
+                setError(t('errors.graphStillLoading'))
                 return
               }
               const blob = await canvasRef.current.exportPng()
@@ -772,23 +765,23 @@ const InvestigationDetailPage = () => {
               link.click()
               window.URL.revokeObjectURL(url)
             } catch (err) {
-              setError('Failed to export snapshot')
+              setError(t('errors.failedToExportSnapshot'))
             }
           }}
           sx={{ textTransform: 'none' }}
         >
-          Snapshot
+          {t('investigations.snapshot')}
         </Button>
       </Box>
 
       {selectedNodes.length > 1 && (
         <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
           <Typography variant="body2" color="text.secondary">
-            {selectedNodes.length} nodes selected
+            {t('investigations.selectedNodes', { count: selectedNodes.length })}
           </Typography>
           {!bulkSelectionInfo?.unifiedType && (
             <Typography variant="caption" color="warning.main">
-              Bulk enricher: choose nodes of one type (e.g. only IPs or only subdomains).
+              {t('investigations.bulkSingleTypeHint')}
             </Typography>
           )}
           {keepSubdomainsOnlyOffered && (
@@ -799,7 +792,7 @@ const InvestigationDetailPage = () => {
               onClick={handleKeepSubdomainsOnly}
               sx={{ textTransform: 'none' }}
             >
-              Залишити сабдомени
+              {t('investigations.keepSubdomainsOnly')}
             </Button>
           )}
           <Button
@@ -809,7 +802,7 @@ const InvestigationDetailPage = () => {
             onClick={(e) => setBulkEnricherAnchor(e.currentTarget)}
             sx={{ textTransform: 'none' }}
           >
-            Run enricher on all
+            {t('investigations.runSelected')}
           </Button>
           <Menu
             anchorEl={bulkEnricherAnchor}
@@ -821,7 +814,7 @@ const InvestigationDetailPage = () => {
               <>
                 <MenuItem disabled sx={{ whiteSpace: 'normal', maxWidth: 340 }}>
                   <Typography variant="body2" color="text.secondary">
-                    Оберіть ноди одного типу (наприклад лише сабдомени) для масового enricher.
+                    {t('investigations.bulkMenuMixedHint')}
                   </Typography>
                 </MenuItem>
                 {keepSubdomainsOnlyOffered && (
@@ -831,7 +824,7 @@ const InvestigationDetailPage = () => {
                       handleKeepSubdomainsOnly()
                     }}
                   >
-                    Залишити сабдомени
+                    {t('investigations.keepSubdomainsOnly')}
                   </MenuItem>
                 )}
               </>
@@ -848,7 +841,7 @@ const InvestigationDetailPage = () => {
                   key={`ext-${api.id}`}
                   onClick={() => void handleBulkEnricherPick(`external_apis:${api.id}`)}
                 >
-                  {api.label} (external)
+                  {t('investigations.externalApiItem', { label: api.label })}
                 </MenuItem>
               ))}
           </Menu>
@@ -861,7 +854,7 @@ const InvestigationDetailPage = () => {
             }}
             sx={{ textTransform: 'none' }}
           >
-            Clear selection
+            {t('common.reset')}
           </Button>
           <Button
             size="small"
@@ -881,7 +874,7 @@ const InvestigationDetailPage = () => {
             }}
             sx={{ textTransform: 'none' }}
           >
-            Export selected
+            {t('common.export')}
           </Button>
         </Box>
       )}
@@ -894,32 +887,34 @@ const InvestigationDetailPage = () => {
           action={
             error === BULK_ENRICHER_MIXED_TYPES_ERROR && keepSubdomainsOnlyOffered ? (
               <Button color="inherit" size="small" onClick={() => handleKeepSubdomainsOnly()}>
-                Залишити сабдомени
+                {t('investigations.keepSubdomainsOnly')}
               </Button>
             ) : undefined
           }
         >
-          {error}
+          {error === BULK_ENRICHER_MIXED_TYPES_ERROR ? t('investigations.sameTypeBulk') : error}
         </Alert>
       )}
 
       <Box sx={{ mb: 2 }}>
         <Typography variant="caption" color="text.secondary" sx={{ mr: 1 }}>
-          Filter by type:
+          {t('common.filters')}:
         </Typography>
         <FormGroup row>
           {(['domain', 'subdomain', 'ip', 'mx', 'ns', 'certificate', 'port', 'technology', 'asn'] as const).map(
-            (t) => (
+            (typeKey) => (
               <FormControlLabel
-                key={t}
+                key={typeKey}
                 control={
                   <Checkbox
                     size="small"
-                    checked={typeFilter[t] !== false}
-                    onChange={(_, checked) => setTypeFilter((prev) => ({ ...prev, [t]: checked }))}
+                    checked={typeFilter[typeKey] !== false}
+                    onChange={(_, checked) =>
+                      setTypeFilter((prev) => ({ ...prev, [typeKey]: checked }))
+                    }
                   />
                 }
-                label={t}
+                label={t(`investigations.types.${typeKey}`)}
               />
             )
           )}
@@ -931,7 +926,7 @@ const InvestigationDetailPage = () => {
                 onChange={(_, checked) => setShowEdgeLabels(checked)}
               />
             }
-            label="edge labels"
+            label={t('investigations.edgeLabels')}
           />
         </FormGroup>
       </Box>
@@ -954,7 +949,7 @@ const InvestigationDetailPage = () => {
               <CircularProgress size={26} thickness={5} sx={{ flexShrink: 0, mt: 0.25 }} />
               <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Typography variant="body2" fontWeight={600}>
-                  Йде збагачення
+                  {t('investigations.enrichingInProgress')}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" noWrap title={enricherProgress.label}>
                   {enricherProgress.label}
@@ -1026,17 +1021,17 @@ const InvestigationDetailPage = () => {
       />
 
       <Dialog open={shareDialogOpen} onClose={() => setShareDialogOpen(false)}>
-        <DialogTitle>Share Investigation</DialogTitle>
+        <DialogTitle>{t('investigations.shareTitle')}</DialogTitle>
         <DialogContent>
           <DialogContentText sx={{ mb: 2 }}>
-            Anyone with this link can view the investigation (read-only). Link expires in 7 days.
+            {t('investigations.shareBody')}
           </DialogContentText>
           {shareUrl && (
             <TextField
               fullWidth
               size="small"
               value={shareUrl}
-              readOnly
+              InputProps={{ readOnly: true }}
               onClick={(e) => (e.target as HTMLInputElement).select()}
             />
           )}
@@ -1051,7 +1046,7 @@ const InvestigationDetailPage = () => {
             }}
             sx={{ textTransform: 'none' }}
           >
-            Copy & Close
+            {t('investigations.copyAndClose')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -1060,26 +1055,23 @@ const InvestigationDetailPage = () => {
         open={confirmActiveDialog !== null}
         onClose={() => setConfirmActiveDialog(null)}
       >
-        <DialogTitle>Active Enricher Warning</DialogTitle>
+        <DialogTitle>{t('investigations.activeEnricherTitle')}</DialogTitle>
         <DialogContent>
           <DialogContentText>
             {confirmActiveDialog?.mode === 'bulk' ? (
               <>
-                This enricher will directly contact each of the {confirmActiveDialog.targets.length}{' '}
-                selected targets one after another (port scan, SSL handshake, or HTTP requests). It may
-                trigger IDS/IPS alerts. Continue?
+                {t('investigations.activeEnricherBulk', {
+                  count: confirmActiveDialog.targets.length,
+                })}
               </>
             ) : (
-              <>
-                This enricher will directly contact the target (port scan, SSL handshake, or HTTP
-                requests). It may trigger IDS/IPS alerts on the target&apos;s side. Continue?
-              </>
+              <>{t('investigations.activeEnricherSingle')}</>
             )}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setConfirmActiveDialog(null)} sx={{ textTransform: 'none' }}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button
             variant="contained"
@@ -1104,7 +1096,7 @@ const InvestigationDetailPage = () => {
             }}
             sx={{ textTransform: 'none' }}
           >
-            Continue
+            {t('common.continue')}
           </Button>
         </DialogActions>
       </Dialog>

@@ -43,6 +43,8 @@ export interface CertificateInfo {
   subject_cn?: string
   issuer?: string
   san?: string[]
+  not_before?: string | null
+  not_after?: string | null
   is_expired?: boolean
   error?: string
 }

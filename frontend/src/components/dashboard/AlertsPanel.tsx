@@ -8,6 +8,7 @@ import {
   Chip,
 } from '@mui/material'
 import WarningIcon from '@mui/icons-material/Warning'
+import { useTranslation } from 'react-i18next'
 import { Alert, ScanResults } from '../../types'
 import HelpTooltip from '../common/HelpTooltip'
 
@@ -29,6 +30,7 @@ const levelColor = (level: string) => {
 }
 
 const AlertsPanel = ({ scanResults }: AlertsPanelProps) => {
+  const { t } = useTranslation()
   const alerts: Alert[] = scanResults.alerts || []
 
   if (alerts.length === 0) {
@@ -40,7 +42,7 @@ const AlertsPanel = ({ scanResults }: AlertsPanelProps) => {
       <CardContent>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
           <WarningIcon color="warning" />
-          <Typography variant="h6">Security Alerts ({alerts.length})</Typography>
+          <Typography variant="h6">{t('results.securityAlertsHeading', { count: alerts.length })}</Typography>
           <HelpTooltip topic="security_alerts" />
         </Box>
         <List dense>

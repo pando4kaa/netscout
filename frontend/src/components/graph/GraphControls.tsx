@@ -29,6 +29,7 @@ import AccountTreeIcon from '@mui/icons-material/AccountTree'
 import BubbleChartIcon from '@mui/icons-material/BubbleChart'
 import RadioButtonCheckedIcon from '@mui/icons-material/RadioButtonChecked'
 import ScatterPlotIcon from '@mui/icons-material/ScatterPlot'
+import { useTranslation } from 'react-i18next'
 
 interface GraphControlsProps {
   cy: Core | null
@@ -39,7 +40,7 @@ interface GraphControlsProps {
 const LAYOUTS = [
   { 
     name: 'concentric', 
-    label: 'Radial', 
+    labelKey: 'radial',
     icon: <RadioButtonCheckedIcon fontSize="small" />,
     options: {
       concentric: (node: any) => {
@@ -60,7 +61,7 @@ const LAYOUTS = [
   },
   { 
     name: 'cose', 
-    label: 'Force', 
+    labelKey: 'force',
     icon: <BubbleChartIcon fontSize="small" />,
     options: {
       nodeRepulsion: 8000,
@@ -75,7 +76,7 @@ const LAYOUTS = [
   },
   { 
     name: 'breadthfirst', 
-    label: 'Tree', 
+    labelKey: 'tree',
     icon: <AccountTreeIcon fontSize="small" />,
     options: {
       directed: true,
@@ -87,7 +88,7 @@ const LAYOUTS = [
   },
   { 
     name: 'circle', 
-    label: 'Circle', 
+    labelKey: 'circle',
     icon: <ScatterPlotIcon fontSize="small" />,
     options: {
       animate: true,
@@ -98,7 +99,7 @@ const LAYOUTS = [
   },
   { 
     name: 'grid', 
-    label: 'Grid', 
+    labelKey: 'grid',
     icon: <GridViewIcon fontSize="small" />,
     options: {
       animate: true,
@@ -107,22 +108,23 @@ const LAYOUTS = [
       spacingFactor: 1.2,
     }
   },
-]
+] as const
 
 const NODE_TYPE_OPTIONS = [
-  { key: 'domain', label: 'Domain' },
-  { key: 'subdomain', label: 'Subdomain' },
-  { key: 'ip', label: 'IP' },
-  { key: 'mx', label: 'MX' },
-  { key: 'ns', label: 'NS' },
-  { key: 'certificate', label: 'Certificate' },
-  { key: 'port', label: 'Port' },
+  { key: 'domain' },
+  { key: 'subdomain' },
+  { key: 'ip' },
+  { key: 'mx' },
+  { key: 'ns' },
+  { key: 'certificate' },
+  { key: 'port' },
 ] as const
 
 const MIN_ZOOM = 0.2
 const MAX_ZOOM = 3
 
 const GraphControls = ({ cy, onLayoutChange, graphWrapperRef }: GraphControlsProps) => {
+  const { t } = useTranslation()
   const [activeLayout, setActiveLayout] = useState('concentric')
   const [visibleTypes, setVisibleTypes] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(NODE_TYPE_OPTIONS.map((o) => [o.key, true]))
@@ -137,9 +139,9 @@ const GraphControls = ({ cy, onLayoutChange, graphWrapperRef }: GraphControlsPro
       cy.nodes().forEach((node) => {
         const nodeType = node.data('type')
         if (types[nodeType] !== false) {
-          node.show()
+          node.style('display', 'element')
         } else {
-          node.hide()
+          node.style('display', 'none')
         }
       })
     },
@@ -161,7 +163,9 @@ const GraphControls = ({ cy, onLayoutChange, graphWrapperRef }: GraphControlsPro
       setZoomValue(cy.zoom())
       const onZoom = () => setZoomValue(cy.zoom())
       cy.on('zoom', onZoom)
-      return () => cy.off('zoom', onZoom)
+      return () => {
+        cy.off('zoom', onZoom)
+      }
     }
   }, [cy])
 
@@ -312,28 +316,26 @@ const GraphControls = ({ cy, onLayoutChange, graphWrapperRef }: GraphControlsPro
       {/* Search */}
       <Box sx={{ minWidth: 220 }}>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-          Search
+          {t('common.search')}
         </Typography>
         <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
           <TextField
             size="small"
-            placeholder="Subdomain, IP..."
+            placeholder={t('investigations.searchNode')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon fontSize="small" />
-                  </InputAdornment>
-                ),
-              },
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" />
+                </InputAdornment>
+              ),
             }}
             sx={{ flex: 1, '& .MuiInputBase-root': { bgcolor: 'background.paper' } }}
           />
           <Button size="small" variant="contained" onClick={handleSearch}>
-            Find
+            {t('results.find')}
           </Button>
         </Box>
       </Box>
@@ -343,11 +345,11 @@ const GraphControls = ({ cy, onLayoutChange, graphWrapperRef }: GraphControlsPro
       {/* Layout buttons */}
       <Box>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-          Layout
+          {t('results.layout')}
         </Typography>
         <ButtonGroup variant="outlined" size="small">
           {LAYOUTS.map((layout) => (
-            <Tooltip key={layout.name} title={layout.label}>
+            <Tooltip key={layout.name} title={t(`results.layouts.${layout.labelKey}`)}>
               <Button
                 onClick={() => handleLayoutChange(layout.name, layout.options)}
                 variant={activeLayout === layout.name ? 'contained' : 'outlined'}
@@ -365,10 +367,10 @@ const GraphControls = ({ cy, onLayoutChange, graphWrapperRef }: GraphControlsPro
       {/* Zoom controls */}
       <Box sx={{ minWidth: 140 }}>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-          Zoom
+          {t('results.zoom')}
         </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Tooltip title="Zoom Out">
+          <Tooltip title={t('results.zoomOut')}>
             <Button size="small" onClick={handleZoomOut} sx={{ minWidth: 36 }}>
               <ZoomOutIcon fontSize="small" />
             </Button>
@@ -382,7 +384,7 @@ const GraphControls = ({ cy, onLayoutChange, graphWrapperRef }: GraphControlsPro
             sx={{ width: 80 }}
             size="small"
           />
-          <Tooltip title="Zoom In">
+          <Tooltip title={t('results.zoomIn')}>
             <Button size="small" onClick={handleZoomIn} sx={{ minWidth: 36 }}>
               <ZoomInIcon fontSize="small" />
             </Button>
@@ -395,27 +397,27 @@ const GraphControls = ({ cy, onLayoutChange, graphWrapperRef }: GraphControlsPro
       {/* View controls */}
       <Box>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-          View
+          {t('results.view')}
         </Typography>
         <ButtonGroup variant="outlined" size="small">
           {graphWrapperRef && (
-            <Tooltip title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen mode'}>
+            <Tooltip title={isFullscreen ? t('results.exitFullscreen') : t('results.fullscreenMode')}>
               <Button onClick={handleFullscreen}>
                 {isFullscreen ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />}
               </Button>
             </Tooltip>
           )}
-          <Tooltip title="Fit to Screen">
+          <Tooltip title={t('results.fitToScreen')}>
             <Button onClick={handleFit}>
               <FitScreenIcon fontSize="small" />
             </Button>
           </Tooltip>
-          <Tooltip title="Center">
+          <Tooltip title={t('results.center')}>
             <Button onClick={handleCenter}>
               <CenterFocusStrongIcon fontSize="small" />
             </Button>
           </Tooltip>
-          <Tooltip title="Reset View">
+          <Tooltip title={t('results.resetView')}>
             <Button onClick={handleReset}>
               <RestartAltIcon fontSize="small" />
             </Button>
@@ -428,10 +430,10 @@ const GraphControls = ({ cy, onLayoutChange, graphWrapperRef }: GraphControlsPro
       {/* Node type filter */}
       <Box>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-          Filter
+          {t('results.filter')}
         </Typography>
         <FormGroup row sx={{ flexWrap: 'wrap', gap: 0 }}>
-          {NODE_TYPE_OPTIONS.map(({ key, label }) => (
+          {NODE_TYPE_OPTIONS.map(({ key }) => (
             <FormControlLabel
               key={key}
               control={
@@ -441,7 +443,7 @@ const GraphControls = ({ cy, onLayoutChange, graphWrapperRef }: GraphControlsPro
                   onChange={(_, checked) => handleFilterChange(key, checked)}
                 />
               }
-              label={label}
+              label={t(`investigations.types.${key}`)}
               sx={{ mr: 1 }}
             />
           ))}
@@ -453,20 +455,20 @@ const GraphControls = ({ cy, onLayoutChange, graphWrapperRef }: GraphControlsPro
       {/* Export */}
       <Box>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-          Export
+          {t('common.export')}
         </Typography>
         <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-          <Tooltip title="Download as PNG">
+          <Tooltip title={t('results.downloadPng')}>
             <Button variant="outlined" size="small" onClick={handleExportPNG} startIcon={<DownloadIcon />}>
               PNG
             </Button>
           </Tooltip>
-          <Tooltip title="Download as JSON">
+          <Tooltip title={t('results.downloadJson')}>
             <Button variant="outlined" size="small" onClick={handleExportJSON}>
               JSON
             </Button>
           </Tooltip>
-          <Tooltip title="Download as GEXF (Gephi)">
+          <Tooltip title={t('results.downloadGexf')}>
             <Button variant="outlined" size="small" onClick={handleExportGEXF}>
               GEXF
             </Button>

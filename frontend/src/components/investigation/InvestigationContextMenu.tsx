@@ -12,6 +12,7 @@ import AccountTreeIcon from '@mui/icons-material/AccountTree'
 import WarningIcon from '@mui/icons-material/Warning'
 import ApiIcon from '@mui/icons-material/Api'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
+import { useTranslation } from 'react-i18next'
 import {
   ENRICHERS_BY_ENTITY,
   ENRICHER_LABELS,
@@ -51,11 +52,11 @@ interface InvestigationContextMenuProps {
 const InvestigationContextMenu = ({
   anchorPosition,
   nodeType,
-  nodeValue,
   onClose,
   onRunEnricher,
   loading = false,
 }: InvestigationContextMenuProps) => {
+  const { t } = useTranslation()
   const [externalApisOpen, setExternalApisOpen] = useState(false)
   const [submenuAnchor, setSubmenuAnchor] = useState<HTMLElement | null>(null)
   const enrichers = ENRICHERS_BY_ENTITY[nodeType] || []
@@ -92,7 +93,6 @@ const InvestigationContextMenu = ({
         MenuListProps={{ sx: { minWidth: 220 } }}
         slotProps={{
           paper: { 'data-no-context-menu': true } as object,
-          backdrop: { 'data-no-context-menu': true } as object,
         }}
       >
         {loading ? (
@@ -100,7 +100,7 @@ const InvestigationContextMenu = ({
             <ListItemIcon>
               <CircularProgress size={20} />
             </ListItemIcon>
-            <ListItemText primary="Running..." />
+            <ListItemText primary={t('investigations.running')} />
           </MenuItem>
         ) : (
           <>
@@ -118,12 +118,12 @@ const InvestigationContextMenu = ({
                   <ListItemIcon>{ENRICHER_ICONS[name] || <DnsIcon fontSize="small" />}</ListItemIcon>
                   <ListItemText
                     primary={ENRICHER_LABELS[name] || name}
-                    secondary={isActive ? 'Direct contact with target' : undefined}
+                    secondary={isActive ? t('investigations.directContact') : undefined}
                   />
                   {isActive && (
                     <Chip
                       icon={<WarningIcon sx={{ fontSize: 14 }} />}
-                      label="Active"
+                      label={t('common.active')}
                       size="small"
                       color="warning"
                       sx={{ ml: 0.5 }}
@@ -135,7 +135,7 @@ const InvestigationContextMenu = ({
             {externalApis.length > 0 && (
               <MenuItem onClick={handleExternalApisClick}>
                 <ListItemIcon><ApiIcon fontSize="small" /></ListItemIcon>
-                <ListItemText primary="External APIs" />
+                <ListItemText primary={t('investigations.externalApis')} />
                 <ChevronRightIcon fontSize="small" sx={{ ml: 0.5 }} />
               </MenuItem>
             )}
@@ -154,7 +154,6 @@ const InvestigationContextMenu = ({
         MenuListProps={{ sx: { minWidth: 180 } }}
         slotProps={{
           paper: { 'data-no-context-menu': true } as object,
-          backdrop: { 'data-no-context-menu': true } as object,
         }}
       >
         {externalApis.map((api) => (

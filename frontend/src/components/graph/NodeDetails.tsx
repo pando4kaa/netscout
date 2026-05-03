@@ -7,6 +7,7 @@ import {
   Typography,
   Box,
 } from '@mui/material'
+import { useTranslation } from 'react-i18next'
 
 interface NodeDetailsProps {
   open: boolean
@@ -20,26 +21,27 @@ interface NodeDetailsProps {
 }
 
 const NodeDetails = ({ open, onClose, nodeData }: NodeDetailsProps) => {
+  const { t } = useTranslation()
   if (!nodeData) return null
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Node Details</DialogTitle>
+      <DialogTitle>{t('results.nodeDetails')}</DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Typography>
-            <strong>ID:</strong> {nodeData.id}
+            <strong>{t('results.nodeIdLabel')}:</strong> {nodeData.id}
           </Typography>
           <Typography>
-            <strong>Label:</strong> {nodeData.label}
+            <strong>{t('results.label')}:</strong> {nodeData.label}
           </Typography>
           <Typography>
-            <strong>Type:</strong> {nodeData.type}
+            <strong>{t('results.type')}:</strong> {nodeData.type}
           </Typography>
         </Box>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Close</Button>
+        <Button onClick={onClose}>{t('common.close')}</Button>
       </DialogActions>
     </Dialog>
   )

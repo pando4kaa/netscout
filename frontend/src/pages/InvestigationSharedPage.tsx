@@ -15,6 +15,7 @@ import {
 } from '@mui/material'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import { Link, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { investigationsApi } from '../services/api'
 import { GraphNode, GraphEdge } from '../types'
 import InvestigationCanvas from '../components/investigation/InvestigationCanvas'
@@ -37,6 +38,7 @@ const getEntityValueFromNode = (data: Record<string, unknown>): string => {
 }
 
 const InvestigationSharedPage = () => {
+  const { t } = useTranslation()
   const { token } = useParams<{ token: string }>()
   const [investigation, setInvestigation] = useState<{
     id: string
@@ -71,12 +73,12 @@ const InvestigationSharedPage = () => {
       const data = await investigationsApi.getShared(token)
       setInvestigation(data)
     } catch (err) {
-      setError('Share link not found or expired')
+      setError(t('investigations.shareExpired'))
       console.error(err)
     } finally {
       setLoading(false)
     }
-  }, [token])
+  }, [token, t])
 
   useEffect(() => {
     loadInvestigation()
@@ -120,9 +122,9 @@ const InvestigationSharedPage = () => {
   if (error || !investigation) {
     return (
       <Container maxWidth="xl" sx={{ py: 3 }}>
-        <Alert severity="error">{error || 'Investigation not found'}</Alert>
+        <Alert severity="error">{error || t('errors.investigationNotFound')}</Alert>
         <Button component={Link} to="/" sx={{ mt: 2, textTransform: 'none' }}>
-          Back to Home
+          {t('investigations.backToHome')}
         </Button>
       </Container>
     )
@@ -137,12 +139,12 @@ const InvestigationSharedPage = () => {
         <Typography variant="h5" fontWeight={600}>
           {investigation.name}
         </Typography>
-        <Chip label="Read-only" size="small" color="default" variant="outlined" />
+        <Chip label={t('investigations.readOnly')} size="small" color="default" variant="outlined" />
       </Box>
 
       <Box sx={{ mb: 2 }}>
         <Typography variant="caption" color="text.secondary" sx={{ mr: 1 }}>
-          Filter by type:
+          {t('investigations.filterByType')}
         </Typography>
         <FormGroup row>
           {(['domain', 'subdomain', 'ip', 'mx', 'ns', 'certificate', 'port', 'technology', 'asn'] as const).map(
@@ -168,7 +170,7 @@ const InvestigationSharedPage = () => {
                 onChange={(_, checked) => setShowEdgeLabels(checked)}
               />
             }
-            label="edge labels"
+            label={t('investigations.edgeLabels')}
           />
         </FormGroup>
       </Box>

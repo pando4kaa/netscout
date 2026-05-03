@@ -3,6 +3,8 @@
  * Connects to ws://host/api/ws/scan, sends {domain}, receives progress and results.
  */
 
+import i18n from '../i18n'
+
 export interface ScanProgressMessage {
   stage: string
   progress: number
@@ -17,10 +19,19 @@ export interface ScanDoneMessage {
   saved?: boolean
 }
 
-export type ScanWsMessage = ScanProgressMessage | ScanDoneMessage
+export interface ScanErrorMessage {
+  stage?: 'error'
+  error: string
+}
+
+export type ScanWsMessage = ScanProgressMessage | ScanDoneMessage | ScanErrorMessage
 
 export function isDoneMessage(msg: ScanWsMessage): msg is ScanDoneMessage {
   return msg.stage === 'done'
+}
+
+function isErrorMessage(msg: ScanWsMessage): msg is ScanErrorMessage {
+  return 'error' in msg
 }
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -53,8 +64,8 @@ export function runScanViaWebSocket(
   ws.onmessage = (event) => {
     try {
       const data: ScanWsMessage = JSON.parse(event.data)
-      if (data.error) {
-        callbacks.onError?.(data.error as unknown as string)
+      if (isErrorMessage(data)) {
+        callbacks.onError?.(data.error)
         ws.close()
         return
       }
@@ -65,12 +76,12 @@ export function runScanViaWebSocket(
         callbacks.onProgress?.(data.progress, data.message || '')
       }
     } catch (e) {
-      callbacks.onError?.('Invalid response')
+      callbacks.onError?.(i18n.t('errors.wsInvalidResponse'))
     }
   }
 
   ws.onerror = () => {
-    callbacks.onError?.('WebSocket connection failed')
+    callbacks.onError?.(i18n.t('errors.wsConnectionFailed'))
   }
 
   ws.onclose = () => {}

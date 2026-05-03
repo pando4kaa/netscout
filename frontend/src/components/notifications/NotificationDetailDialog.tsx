@@ -30,8 +30,10 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown'
 import TrendingUpIcon from '@mui/icons-material/TrendingUp'
 import TrendingDownIcon from '@mui/icons-material/TrendingDown'
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { jsPDF } from 'jspdf'
 import { notificationsApi, type Notification, type NotificationReport } from '../../services/api'
+import { useLocaleFormatters } from '../../i18n/format'
 
 interface NotificationDetailDialogProps {
   open: boolean
@@ -40,16 +42,8 @@ interface NotificationDetailDialogProps {
   onReportLoaded?: () => void
 }
 
-function formatDate(iso: string | null | undefined): string {
-  if (!iso) return '-'
-  try {
-    return new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
-  } catch {
-    return String(iso)
-  }
-}
-
 function ListBlock({ items, max = 30 }: { items: string[]; max?: number }) {
+  const { t } = useTranslation()
   return (
     <Box sx={{ maxHeight: 150, overflow: 'auto' }}>
       {(items || []).slice(0, max).map((s, i) => (
@@ -59,7 +53,7 @@ function ListBlock({ items, max = 30 }: { items: string[]; max?: number }) {
       ))}
       {items && items.length > max && (
         <Typography variant="caption" color="text.secondary">
-          +{items.length - max} more
+          {t('results.moreItems', { count: items.length - max })}
         </Typography>
       )}
     </Box>
@@ -72,9 +66,48 @@ const NotificationDetailDialog = ({
   notification,
   onReportLoaded,
 }: NotificationDetailDialogProps) => {
+  const { t } = useTranslation()
+  const { formatDateTime } = useLocaleFormatters()
   const [report, setReport] = useState<NotificationReport | null>(null)
   const [loading, setLoading] = useState(false)
   const [tab, setTab] = useState(0)
+  const formatDate = (iso: string | null | undefined) => formatDateTime(iso)
+
+  type ComparisonPayload = {
+    scan_1?: { domain?: string; date?: string; risk_score?: number }
+    scan_2?: { domain?: string; date?: string; risk_score?: number }
+    summary?: {
+      risk_1?: number
+      risk_2?: number
+      risk_delta?: number
+      subdomains_added?: number
+      subdomains_removed?: number
+      ips_added?: number
+      ips_removed?: number
+      alerts_1?: number
+      alerts_2?: number
+    }
+    subdomains?: { only_in_1: string[]; only_in_2: string[]; in_both: string[] }
+    ips?: { only_in_1: string[]; only_in_2: string[]; in_both: string[] }
+    ssl?: {
+      hosts_only_in_1: string[]
+      hosts_only_in_2: string[]
+      hosts_in_both: string[]
+      expired_changes?: Array<{ host: string; was_expired_1: boolean; is_expired_2: boolean }>
+    }
+    ports?: {
+      by_ip: Record<string, { only_in_1: string[]; only_in_2: string[]; in_both: string[] }>
+      new_ports_count: number
+      closed_ports_count: number
+    }
+    alerts?: {
+      only_in_1: Array<{ type?: string; level?: string; message?: string; target?: string }>
+      only_in_2: Array<{ type?: string; level?: string; message?: string; target?: string }>
+    }
+  }
+
+  const comp = report?.comparison as ComparisonPayload | undefined
+  const summary = comp?.summary || {}
 
   useEffect(() => {
     if (!open || !notification) {
@@ -105,78 +138,78 @@ const NotificationDetailDialog = ({
     if (!notification || !report || !comp) return ''
     const lines: string[] = []
     lines.push('═'.repeat(60))
-    lines.push(`CHANGE REPORT: ${notification.domain}`)
+    lines.push(t('notifications.changeReportHeader', { domain: notification.domain }))
     lines.push('═'.repeat(60))
     lines.push('')
-    lines.push(`Event type: ${notification.type}`)
-    lines.push(`Date: ${formatDate(notification.created_at)}`)
-    lines.push(`Title: ${notification.title}`)
-    lines.push(`Message: ${notification.message}`)
+    lines.push(t('notifications.eventTypeLine', { type: notification.type }))
+    lines.push(t('notifications.dateLine', { date: formatDate(notification.created_at) }))
+    lines.push(t('notifications.titleLine', { title: notification.title }))
+    lines.push(t('notifications.messageLine', { message: notification.message }))
     lines.push('')
 
     if (comp.scan_1 || comp.scan_2) {
       lines.push('─'.repeat(60))
-      lines.push('SCAN COMPARISON')
+      lines.push(t('notifications.scanComparison').toUpperCase())
       lines.push('─'.repeat(60))
       if (comp.scan_1) {
-        lines.push(`Previous scan: ${formatDate(comp.scan_1.date)} | Risk: ${comp.scan_1.risk_score ?? summary.risk_1}`)
+        lines.push(`${t('notifications.previousScan')}: ${formatDate(comp.scan_1.date)} | ${t('common.risk')}: ${comp.scan_1.risk_score ?? summary.risk_1}`)
       }
       if (comp.scan_2) {
-        lines.push(`Current scan:  ${formatDate(comp.scan_2.date)} | Risk: ${comp.scan_2.risk_score ?? summary.risk_2}`)
+        lines.push(`${t('notifications.currentScan')}:  ${formatDate(comp.scan_2.date)} | ${t('common.risk')}: ${comp.scan_2.risk_score ?? summary.risk_2}`)
       }
       lines.push('')
     }
 
     lines.push('─'.repeat(60))
-    lines.push('SUMMARY OF CHANGES')
+    lines.push(t('notifications.summaryOfChanges').toUpperCase())
     lines.push('─'.repeat(60))
     if (summary.risk_delta !== undefined) {
-      lines.push(`Risk: ${summary.risk_1} → ${summary.risk_2} (${summary.risk_delta >= 0 ? '+' : ''}${summary.risk_delta})`)
+      lines.push(`${t('common.risk')}: ${summary.risk_1} → ${summary.risk_2} (${summary.risk_delta >= 0 ? '+' : ''}${summary.risk_delta})`)
     }
-    lines.push(`Subdomains: +${summary.subdomains_added ?? 0} new, −${summary.subdomains_removed ?? 0} removed`)
-    lines.push(`IP: +${summary.ips_added ?? 0} new, −${summary.ips_removed ?? 0} removed`)
-    lines.push(`Alerts: ${summary.alerts_1 ?? 0} → ${summary.alerts_2 ?? 0}`)
+    lines.push(t('notifications.subdomainDelta', { added: summary.subdomains_added ?? 0, removed: summary.subdomains_removed ?? 0 }))
+    lines.push(t('history.ipsDelta', { added: summary.ips_added ?? 0, removed: summary.ips_removed ?? 0 }))
+    lines.push(`${t('common.alerts')}: ${summary.alerts_1 ?? 0} → ${summary.alerts_2 ?? 0}`)
     lines.push('')
 
     if (comp.subdomains) {
       lines.push('─'.repeat(60))
-      lines.push('SUBDOMAINS')
+      lines.push(t('common.subdomains').toUpperCase())
       lines.push('─'.repeat(60))
-      lines.push(`Removed (${comp.subdomains.only_in_1.length}):`)
+      lines.push(`${t('history.removed', { count: comp.subdomains.only_in_1.length })}:`)
       comp.subdomains.only_in_1.forEach((s) => lines.push(`  • ${s}`))
-      lines.push(`Added (${comp.subdomains.only_in_2.length}):`)
+      lines.push(`${t('history.added', { count: comp.subdomains.only_in_2.length })}:`)
       comp.subdomains.only_in_2.forEach((s) => lines.push(`  • ${s}`))
-      lines.push(`Unchanged (${comp.subdomains.in_both.length}):`)
+      lines.push(`${t('history.unchangedWithCount', { count: comp.subdomains.in_both.length })}:`)
       comp.subdomains.in_both.slice(0, 20).forEach((s) => lines.push(`  • ${s}`))
       if (comp.subdomains.in_both.length > 20) {
-        lines.push(`  ... and ${comp.subdomains.in_both.length - 20} more`)
+        lines.push(`  ${t('results.moreItems', { count: comp.subdomains.in_both.length - 20 })}`)
       }
       lines.push('')
     }
 
     if (comp.ips) {
       lines.push('─'.repeat(60))
-      lines.push('IP ADDRESSES')
+      lines.push(t('results.ipAddresses').toUpperCase())
       lines.push('─'.repeat(60))
-      lines.push(`Removed (${comp.ips.only_in_1.length}):`)
+      lines.push(`${t('history.removed', { count: comp.ips.only_in_1.length })}:`)
       comp.ips.only_in_1.forEach((ip) => lines.push(`  • ${ip}`))
-      lines.push(`Added (${comp.ips.only_in_2.length}):`)
+      lines.push(`${t('history.added', { count: comp.ips.only_in_2.length })}:`)
       comp.ips.only_in_2.forEach((ip) => lines.push(`  • ${ip}`))
       lines.push('')
     }
 
     if (comp.ssl) {
       lines.push('─'.repeat(60))
-      lines.push('SSL CERTIFICATES')
+      lines.push(t('results.sslCertificates').toUpperCase())
       lines.push('─'.repeat(60))
-      lines.push(`Only in previous (${comp.ssl.hosts_only_in_1.length}):`)
+      lines.push(`${t('notifications.onlyInPrevious', { count: comp.ssl.hosts_only_in_1.length })}:`)
       comp.ssl.hosts_only_in_1.forEach((h) => lines.push(`  • ${h}`))
-      lines.push(`Only in current (${comp.ssl.hosts_only_in_2.length}):`)
+      lines.push(`${t('notifications.onlyInCurrent', { count: comp.ssl.hosts_only_in_2.length })}:`)
       comp.ssl.hosts_only_in_2.forEach((h) => lines.push(`  • ${h}`))
       if (comp.ssl.expired_changes?.length) {
-        lines.push('Validity changes:')
+        lines.push(`${t('notifications.validityChanges')}:`)
         comp.ssl.expired_changes.forEach((c) =>
-          lines.push(`  • ${c.host}: ${c.was_expired_1 ? 'Expired' : 'Valid'} → ${c.is_expired_2 ? 'Expired' : 'Valid'}`)
+          lines.push(`  • ${c.host}: ${c.was_expired_1 ? t('results.expired') : t('results.valid')} → ${c.is_expired_2 ? t('results.expired') : t('results.valid')}`)
         )
       }
       lines.push('')
@@ -184,28 +217,28 @@ const NotificationDetailDialog = ({
 
     if (comp.ports && comp.ports.by_ip && Object.keys(comp.ports.by_ip).length > 0) {
       lines.push('─'.repeat(60))
-      lines.push('PORTS')
+      lines.push(t('scan.tabs.ports').toUpperCase())
       lines.push('─'.repeat(60))
-      lines.push(`New ports: ${comp.ports.new_ports_count ?? 0} | Closed: ${comp.ports.closed_ports_count ?? 0}`)
+      lines.push(t('notifications.newClosedPorts', { newPorts: comp.ports.new_ports_count ?? 0, closedPorts: comp.ports.closed_ports_count ?? 0 }))
       Object.entries(comp.ports.by_ip).forEach(([ip, diff]) => {
-        lines.push(`  ${ip}: −${diff.only_in_1?.length ?? 0} closed, +${diff.only_in_2?.length ?? 0} new`)
+        lines.push(`  ${ip}: −${diff.only_in_1?.length ?? 0} ${t('notifications.closedShort')}, +${diff.only_in_2?.length ?? 0} ${t('notifications.newShort')}`)
       })
       lines.push('')
     }
 
     if (comp.alerts) {
       lines.push('─'.repeat(60))
-      lines.push('ALERTS')
+      lines.push(t('common.alerts').toUpperCase())
       lines.push('─'.repeat(60))
-      lines.push(`Resolved (${comp.alerts.only_in_1.length}):`)
+      lines.push(`${t('notifications.resolved', { count: comp.alerts.only_in_1.length })}:`)
       comp.alerts.only_in_1.forEach((a) => lines.push(`  • [${a.type}] ${a.message}${a.target ? ` (${a.target})` : ''}`))
-      lines.push(`New (${comp.alerts.only_in_2.length}):`)
+      lines.push(`${t('history.added', { count: comp.alerts.only_in_2.length })}:`)
       comp.alerts.only_in_2.forEach((a) => lines.push(`  • [${a.type}] ${a.message}${a.target ? ` (${a.target})` : ''}`))
     }
 
     lines.push('')
     lines.push('═'.repeat(60))
-    lines.push(`Report generated by NetScout • ${new Date().toLocaleString('en-US')}`)
+    lines.push(t('notifications.reportFooter', { date: formatDateTime(new Date()) }))
     return lines.join('\n')
   }
 
@@ -293,8 +326,8 @@ const NotificationDetailDialog = ({
       ctx.stroke()
       setFont(14, 400)
       ctx.fillStyle = '#6b7280'
-      ctx.fillText(`NetScout Report`, marginX, pageHeightPx - 24)
-      const pageLabel = `Page ${pageNo}`
+      ctx.fillText(t('notifications.pdfReportTitle'), marginX, pageHeightPx - 24)
+      const pageLabel = t('notifications.pageLabel', { page: pageNo })
       const labelWidth = ctx.measureText(pageLabel).width
       ctx.fillText(pageLabel, pageWidthPx - marginX - labelWidth, pageHeightPx - 24)
     }
@@ -347,60 +380,66 @@ const NotificationDetailDialog = ({
     const buildNarrative = () => {
       const narrative: string[] = []
       const riskDelta = summary.risk_delta ?? 0
-      if (riskDelta > 0) narrative.push(`Risk score increased by ${riskDelta}. Attack surface has widened.`)
-      if (riskDelta < 0) narrative.push(`Risk score decreased by ${Math.abs(riskDelta)}. Overall security improved.`)
-      if (riskDelta === 0) narrative.push('Risk score unchanged compared to the previous scan.')
+      if (riskDelta > 0) narrative.push(t('notifications.riskIncreased', { delta: riskDelta }))
+      if (riskDelta < 0) narrative.push(t('notifications.riskDecreased', { delta: Math.abs(riskDelta) }))
+      if (riskDelta === 0) narrative.push(t('notifications.riskUnchanged'))
 
       if ((summary.subdomains_added ?? 0) > 0 || (summary.subdomains_removed ?? 0) > 0) {
         narrative.push(
-          `Subdomains: ${summary.subdomains_added ?? 0} added, ${summary.subdomains_removed ?? 0} removed.`
+          t('notifications.subdomainNarrative', {
+            added: summary.subdomains_added ?? 0,
+            removed: summary.subdomains_removed ?? 0,
+          })
         )
       }
       if ((summary.ips_added ?? 0) > 0 || (summary.ips_removed ?? 0) > 0) {
-        narrative.push(`IP addresses: ${summary.ips_added ?? 0} added, ${summary.ips_removed ?? 0} removed.`)
+        narrative.push(t('notifications.ipNarrative', { added: summary.ips_added ?? 0, removed: summary.ips_removed ?? 0 }))
       }
       if ((summary.alerts_2 ?? 0) !== (summary.alerts_1 ?? 0)) {
-        narrative.push(`Alert count changed: ${summary.alerts_1 ?? 0} -> ${summary.alerts_2 ?? 0}.`)
+        narrative.push(t('notifications.alertCountChanged', { from: summary.alerts_1 ?? 0, to: summary.alerts_2 ?? 0 }))
       }
       if ((comp.ssl?.expired_changes?.length ?? 0) > 0) {
-        narrative.push(`Found ${comp.ssl?.expired_changes?.length ?? 0} SSL certificate status changes.`)
+        narrative.push(t('notifications.sslStatusChanges', { count: comp.ssl?.expired_changes?.length ?? 0 }))
       }
       if ((comp.ports?.new_ports_count ?? 0) > 0 || (comp.ports?.closed_ports_count ?? 0) > 0) {
         narrative.push(
-          `Ports: ${comp.ports?.new_ports_count ?? 0} newly opened, ${comp.ports?.closed_ports_count ?? 0} closed.`
+          t('notifications.portNarrative', {
+            newPorts: comp.ports?.new_ports_count ?? 0,
+            closedPorts: comp.ports?.closed_ports_count ?? 0,
+          })
         )
       }
 
       return narrative
     }
 
-    drawParagraph(`Change Report: ${notification.domain}`, { size: 42, weight: 700, gap: 6 })
+    drawParagraph(t('notifications.changeReportFor', { domain: notification.domain }), { size: 42, weight: 700, gap: 6 })
     drawParagraph(`${notification.title}`, { size: 26, weight: 600, color: '#374151', gap: 10 })
-    drawParagraph(`Date: ${formatDate(notification.created_at)}  •  Event type: ${notification.type}`, {
+    drawParagraph(`${t('common.date')}: ${formatDate(notification.created_at)}  •  ${t('notifications.eventType')}: ${notification.type}`, {
       size: 20,
       color: '#6b7280',
       gap: 28,
     })
 
-    drawSection('What Changed')
+    drawSection(t('notifications.whatChanged'))
     const narrative = buildNarrative()
     if (narrative.length === 0) {
-      drawParagraph('No significant changes detected between scans.', { size: 20, color: '#4b5563' })
+      drawParagraph(t('notifications.noSignificantChanges'), { size: 20, color: '#4b5563' })
     } else {
       narrative.forEach((line) => drawParagraph(`• ${line}`, { size: 21, indent: 4, gap: 6 }))
       cursorY += 14
     }
 
-    drawSection('Key Metrics')
-    drawParagraph(`Risk: ${summary.risk_1 ?? 0} -> ${summary.risk_2 ?? 0} (${summary.risk_delta ?? 0})`, {
+    drawSection(t('notifications.keyMetrics'))
+    drawParagraph(`${t('common.risk')}: ${summary.risk_1 ?? 0} -> ${summary.risk_2 ?? 0} (${summary.risk_delta ?? 0})`, {
       size: 22,
       weight: 600,
       color: '#1d4ed8',
       gap: 8,
     })
-    drawParagraph(`Subdomains: +${summary.subdomains_added ?? 0}, -${summary.subdomains_removed ?? 0}`, { size: 21, gap: 6 })
-    drawParagraph(`IP: +${summary.ips_added ?? 0}, -${summary.ips_removed ?? 0}`, { size: 21, gap: 6 })
-    drawParagraph(`Alerts: ${summary.alerts_1 ?? 0} -> ${summary.alerts_2 ?? 0}`, { size: 21, gap: 20 })
+    drawParagraph(t('notifications.subdomainDeltaCompact', { added: summary.subdomains_added ?? 0, removed: summary.subdomains_removed ?? 0 }), { size: 21, gap: 6 })
+    drawParagraph(t('notifications.ipDeltaCompact', { added: summary.ips_added ?? 0, removed: summary.ips_removed ?? 0 }), { size: 21, gap: 6 })
+    drawParagraph(`${t('common.alerts')}: ${summary.alerts_1 ?? 0} -> ${summary.alerts_2 ?? 0}`, { size: 21, gap: 20 })
 
     const drawListSection = (title: string, lines: string[]) => {
       if (lines.length === 0) return
@@ -409,42 +448,42 @@ const NotificationDetailDialog = ({
       cursorY += 14
     }
 
-    drawListSection('Subdomains', [
-      `Removed: ${comp.subdomains?.only_in_1.length ?? 0}`,
+    drawListSection(t('common.subdomains'), [
+      `${t('history.removedShort')}: ${comp.subdomains?.only_in_1.length ?? 0}`,
       ...(comp.subdomains?.only_in_1 ?? []).slice(0, 10).map((v) => `• ${v}`),
-      `Added: ${comp.subdomains?.only_in_2.length ?? 0}`,
+      `${t('history.addedShort')}: ${comp.subdomains?.only_in_2.length ?? 0}`,
       ...(comp.subdomains?.only_in_2 ?? []).slice(0, 10).map((v) => `• ${v}`),
     ])
 
-    drawListSection('IP Addresses', [
-      `Removed: ${comp.ips?.only_in_1.length ?? 0}`,
+    drawListSection(t('results.ipAddresses'), [
+      `${t('history.removedShort')}: ${comp.ips?.only_in_1.length ?? 0}`,
       ...(comp.ips?.only_in_1 ?? []).slice(0, 10).map((v) => `• ${v}`),
-      `Added: ${comp.ips?.only_in_2.length ?? 0}`,
+      `${t('history.addedShort')}: ${comp.ips?.only_in_2.length ?? 0}`,
       ...(comp.ips?.only_in_2 ?? []).slice(0, 10).map((v) => `• ${v}`),
     ])
 
     drawListSection('SSL', [
-      `Only in previous: ${comp.ssl?.hosts_only_in_1.length ?? 0}`,
+      `${t('notifications.onlyInPreviousShort')}: ${comp.ssl?.hosts_only_in_1.length ?? 0}`,
       ...(comp.ssl?.hosts_only_in_1 ?? []).slice(0, 8).map((v) => `• ${v}`),
-      `Only in current: ${comp.ssl?.hosts_only_in_2.length ?? 0}`,
+      `${t('notifications.onlyInCurrentShort')}: ${comp.ssl?.hosts_only_in_2.length ?? 0}`,
       ...(comp.ssl?.hosts_only_in_2 ?? []).slice(0, 8).map((v) => `• ${v}`),
       ...((comp.ssl?.expired_changes ?? []).slice(0, 8).map(
-        (c) => `• ${c.host}: ${c.was_expired_1 ? 'expired' : 'valid'} -> ${c.is_expired_2 ? 'expired' : 'valid'}`
+        (c) => `• ${c.host}: ${c.was_expired_1 ? t('results.expired') : t('results.valid')} -> ${c.is_expired_2 ? t('results.expired') : t('results.valid')}`
       )),
     ])
 
-    drawListSection('Ports', [
-      `New ports: ${comp.ports?.new_ports_count ?? 0}`,
-      `Closed ports: ${comp.ports?.closed_ports_count ?? 0}`,
+    drawListSection(t('scan.tabs.ports'), [
+      `${t('notifications.newPorts')}: ${comp.ports?.new_ports_count ?? 0}`,
+      `${t('notifications.closedPorts')}: ${comp.ports?.closed_ports_count ?? 0}`,
       ...Object.entries(comp.ports?.by_ip ?? {})
         .slice(0, 10)
         .map(([ip, diff]) => `• ${ip}: -${diff.only_in_1.length}, +${diff.only_in_2.length}`),
     ])
 
-    drawListSection('Alerts', [
-      `Resolved: ${comp.alerts?.only_in_1.length ?? 0}`,
+    drawListSection(t('common.alerts'), [
+      `${t('notifications.resolvedShort')}: ${comp.alerts?.only_in_1.length ?? 0}`,
       ...(comp.alerts?.only_in_1 ?? []).slice(0, 8).map((a) => `• [${a.type ?? '-'}] ${a.message ?? '-'}`),
-      `New: ${comp.alerts?.only_in_2.length ?? 0}`,
+      `${t('notifications.newShort')}: ${comp.alerts?.only_in_2.length ?? 0}`,
       ...(comp.alerts?.only_in_2 ?? []).slice(0, 8).map((a) => `• [${a.type ?? '-'}] ${a.message ?? '-'}`),
     ])
 
@@ -465,41 +504,6 @@ const NotificationDetailDialog = ({
   }
 
   if (!notification) return null
-
-  const comp = report?.comparison as {
-    scan_1?: { domain?: string; date?: string; risk_score?: number }
-    scan_2?: { domain?: string; date?: string; risk_score?: number }
-    summary?: {
-      risk_1?: number
-      risk_2?: number
-      risk_delta?: number
-      subdomains_added?: number
-      subdomains_removed?: number
-      ips_added?: number
-      ips_removed?: number
-      alerts_1?: number
-      alerts_2?: number
-    }
-    subdomains?: { only_in_1: string[]; only_in_2: string[]; in_both: string[] }
-    ips?: { only_in_1: string[]; only_in_2: string[]; in_both: string[] }
-    ssl?: {
-      hosts_only_in_1: string[]
-      hosts_only_in_2: string[]
-      hosts_in_both: string[]
-      expired_changes?: Array<{ host: string; was_expired_1: boolean; is_expired_2: boolean }>
-    }
-    ports?: {
-      by_ip: Record<string, { only_in_1: string[]; only_in_2: string[]; in_both: string[] }>
-      new_ports_count: number
-      closed_ports_count: number
-    }
-    alerts?: {
-      only_in_1: Array<{ type?: string; level?: string; message?: string; target?: string }>
-      only_in_2: Array<{ type?: string; level?: string; message?: string; target?: string }>
-    }
-  } | undefined
-
-  const summary = comp?.summary || {}
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
@@ -533,11 +537,11 @@ const NotificationDetailDialog = ({
                 <Grid item xs={6}>
                   <Paper variant="outlined" sx={{ p: 2 }}>
                     <Typography variant="subtitle2" color="primary">
-                      Previous scan
+                      {t('notifications.previousScan')}
                     </Typography>
                     <Typography variant="body2">{formatDate(comp.scan_1.date)}</Typography>
                     <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                      <Chip size="small" label={`Risk: ${comp.scan_1.risk_score ?? summary.risk_1}`} />
+                      <Chip size="small" label={`${t('common.risk')}: ${comp.scan_1.risk_score ?? summary.risk_1}`} />
                     </Box>
                   </Paper>
                 </Grid>
@@ -546,11 +550,11 @@ const NotificationDetailDialog = ({
                 <Grid item xs={6}>
                   <Paper variant="outlined" sx={{ p: 2 }}>
                     <Typography variant="subtitle2" color="secondary">
-                      Current scan
+                      {t('notifications.currentScan')}
                     </Typography>
                     <Typography variant="body2">{formatDate(comp.scan_2.date)}</Typography>
                     <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                      <Chip size="small" label={`Risk: ${comp.scan_2.risk_score ?? summary.risk_2}`} />
+                      <Chip size="small" label={`${t('common.risk')}: ${comp.scan_2.risk_score ?? summary.risk_2}`} />
                     </Box>
                   </Paper>
                 </Grid>
@@ -559,7 +563,7 @@ const NotificationDetailDialog = ({
 
             <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
               <Typography variant="subtitle2" gutterBottom>
-                Summary of changes
+                {t('notifications.summaryOfChanges')}
               </Typography>
               <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                 {summary.risk_delta !== undefined && (
@@ -575,46 +579,46 @@ const NotificationDetailDialog = ({
                     color={
                       summary.risk_delta > 0 ? 'error' : summary.risk_delta < 0 ? 'success' : 'default'
                     }
-                    label={`Risk: ${summary.risk_1} → ${summary.risk_2} (${summary.risk_delta >= 0 ? '+' : ''}${summary.risk_delta})`}
+                    label={`${t('common.risk')}: ${summary.risk_1} → ${summary.risk_2} (${summary.risk_delta >= 0 ? '+' : ''}${summary.risk_delta})`}
                   />
                 )}
                 <Chip
                   size="small"
-                  label={`Subdomains: +${summary.subdomains_added ?? 0} new, −${summary.subdomains_removed ?? 0} removed`}
+                  label={t('notifications.subdomainDelta', { added: summary.subdomains_added ?? 0, removed: summary.subdomains_removed ?? 0 })}
                 />
                 <Chip
                   size="small"
-                  label={`IP: +${summary.ips_added ?? 0} new, −${summary.ips_removed ?? 0} removed`}
+                  label={t('history.ipsDelta', { added: summary.ips_added ?? 0, removed: summary.ips_removed ?? 0 })}
                 />
-                <Chip size="small" label={`Alerts: ${summary.alerts_1 ?? 0} → ${summary.alerts_2 ?? 0}`} />
+                <Chip size="small" label={`${t('common.alerts')}: ${summary.alerts_1 ?? 0} → ${summary.alerts_2 ?? 0}`} />
               </Box>
             </Paper>
 
             <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-              <Tab label="Subdomains" />
-              <Tab label="IP" />
-              <Tab label="SSL" />
-              <Tab label="Ports" />
-              <Tab label="Alerts" />
+              <Tab label={t('common.subdomains')} />
+              <Tab label={t('investigations.types.ip')} />
+              <Tab label={t('notifications.tabSsl')} />
+              <Tab label={t('scan.tabs.ports')} />
+              <Tab label={t('common.alerts')} />
             </Tabs>
 
             {tab === 0 && comp.subdomains && (
               <Grid container spacing={2}>
                 <Grid item xs={4}>
                   <Typography variant="body2" color="primary" gutterBottom>
-                    Removed ({comp.subdomains.only_in_1.length})
+                    {t('history.removed', { count: comp.subdomains.only_in_1.length })}
                   </Typography>
                   <ListBlock items={comp.subdomains.only_in_1} />
                 </Grid>
                 <Grid item xs={4}>
                   <Typography variant="body2" color="secondary" gutterBottom>
-                    Added ({comp.subdomains.only_in_2.length})
+                    {t('history.added', { count: comp.subdomains.only_in_2.length })}
                   </Typography>
                   <ListBlock items={comp.subdomains.only_in_2} />
                 </Grid>
                 <Grid item xs={4}>
                   <Typography variant="body2" color="text.secondary" gutterBottom>
-                    Unchanged ({comp.subdomains.in_both.length})
+                    {t('history.unchangedWithCount', { count: comp.subdomains.in_both.length })}
                   </Typography>
                   <ListBlock items={comp.subdomains.in_both} />
                 </Grid>
@@ -625,19 +629,19 @@ const NotificationDetailDialog = ({
               <Grid container spacing={2}>
                 <Grid item xs={4}>
                   <Typography variant="body2" color="primary" gutterBottom>
-                    Removed ({comp.ips.only_in_1.length})
+                    {t('history.removed', { count: comp.ips.only_in_1.length })}
                   </Typography>
                   <ListBlock items={comp.ips.only_in_1} />
                 </Grid>
                 <Grid item xs={4}>
                   <Typography variant="body2" color="secondary" gutterBottom>
-                    Added ({comp.ips.only_in_2.length})
+                    {t('history.added', { count: comp.ips.only_in_2.length })}
                   </Typography>
                   <ListBlock items={comp.ips.only_in_2} />
                 </Grid>
                 <Grid item xs={4}>
                   <Typography variant="body2" color="text.secondary" gutterBottom>
-                    Unchanged ({comp.ips.in_both.length})
+                    {t('history.unchangedWithCount', { count: comp.ips.in_both.length })}
                   </Typography>
                   <ListBlock items={comp.ips.in_both} />
                 </Grid>
@@ -649,19 +653,19 @@ const NotificationDetailDialog = ({
                 <Grid container spacing={2} sx={{ mb: 2 }}>
                   <Grid item xs={4}>
                     <Typography variant="body2" color="primary" gutterBottom>
-                      Only in previous ({comp.ssl.hosts_only_in_1.length})
+                      {t('notifications.onlyInPrevious', { count: comp.ssl.hosts_only_in_1.length })}
                     </Typography>
                     <ListBlock items={comp.ssl.hosts_only_in_1} />
                   </Grid>
                   <Grid item xs={4}>
                     <Typography variant="body2" color="secondary" gutterBottom>
-                      Only in current ({comp.ssl.hosts_only_in_2.length})
+                      {t('notifications.onlyInCurrent', { count: comp.ssl.hosts_only_in_2.length })}
                     </Typography>
                     <ListBlock items={comp.ssl.hosts_only_in_2} />
                   </Grid>
                   <Grid item xs={4}>
                     <Typography variant="body2" color="text.secondary" gutterBottom>
-                      In both ({comp.ssl.hosts_in_both.length})
+                      {t('history.inBoth', { count: comp.ssl.hosts_in_both.length })}
                     </Typography>
                     <ListBlock items={comp.ssl.hosts_in_both} />
                   </Grid>
@@ -670,7 +674,7 @@ const NotificationDetailDialog = ({
                   <Accordion>
                     <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                       <Typography variant="body2">
-                        Certificate validity changes ({comp.ssl.expired_changes.length})
+                        {t('notifications.certificateValidityChanges', { count: comp.ssl.expired_changes.length })}
                       </Typography>
                     </AccordionSummary>
                     <AccordionDetails>
@@ -678,17 +682,17 @@ const NotificationDetailDialog = ({
                         <Table size="small">
                           <TableHead>
                             <TableRow>
-                              <TableCell>Host</TableCell>
-                              <TableCell>Previous</TableCell>
-                              <TableCell>Current</TableCell>
+                              <TableCell>{t('results.host')}</TableCell>
+                              <TableCell>{t('notifications.previous')}</TableCell>
+                              <TableCell>{t('notifications.current')}</TableCell>
                             </TableRow>
                           </TableHead>
                           <TableBody>
                             {comp.ssl.expired_changes.map((c, i) => (
                               <TableRow key={i}>
                                 <TableCell sx={{ fontFamily: 'monospace' }}>{c.host}</TableCell>
-                                <TableCell>{c.was_expired_1 ? 'Expired' : 'Valid'}</TableCell>
-                                <TableCell>{c.is_expired_2 ? 'Expired' : 'Valid'}</TableCell>
+                                <TableCell>{c.was_expired_1 ? t('results.expired') : t('results.valid')}</TableCell>
+                                <TableCell>{c.is_expired_2 ? t('results.expired') : t('results.valid')}</TableCell>
                               </TableRow>
                             ))}
                           </TableBody>
@@ -703,7 +707,10 @@ const NotificationDetailDialog = ({
             {tab === 3 && comp.ports && (
               <Box>
                 <Typography variant="body2" gutterBottom>
-                  New ports: {comp.ports.new_ports_count} | Closed: {comp.ports.closed_ports_count}
+                  {t('notifications.newClosedPorts', {
+                    newPorts: comp.ports.new_ports_count,
+                    closedPorts: comp.ports.closed_ports_count,
+                  })}
                 </Typography>
                 {comp.ports.by_ip && Object.keys(comp.ports.by_ip).length > 0 ? (
                   Object.entries(comp.ports.by_ip).map(([ip, diff]) => (
@@ -719,19 +726,19 @@ const NotificationDetailDialog = ({
                         <Grid container spacing={2}>
                           <Grid item xs={4}>
                             <Typography variant="caption" color="error">
-                              Closed
+                              {t('notifications.closedShort')}
                             </Typography>
                             <ListBlock items={diff.only_in_1} />
                           </Grid>
                           <Grid item xs={4}>
                             <Typography variant="caption" color="success.main">
-                              New
+                              {t('notifications.newShort')}
                             </Typography>
                             <ListBlock items={diff.only_in_2} />
                           </Grid>
                           <Grid item xs={4}>
                             <Typography variant="caption" color="text.secondary">
-                              Unchanged
+                              {t('history.unchanged')}
                             </Typography>
                             <ListBlock items={diff.in_both} />
                           </Grid>
@@ -740,7 +747,7 @@ const NotificationDetailDialog = ({
                     </Accordion>
                   ))
                 ) : (
-                  <Typography color="text.secondary">No port changes</Typography>
+                  <Typography color="text.secondary">{t('history.noPortChanges')}</Typography>
                 )}
               </Box>
             )}
@@ -749,7 +756,7 @@ const NotificationDetailDialog = ({
               <Grid container spacing={2}>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="primary" gutterBottom>
-                    Resolved ({comp.alerts.only_in_1.length})
+                    {t('notifications.resolved', { count: comp.alerts.only_in_1.length })}
                   </Typography>
                   <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
                     {comp.alerts.only_in_1.map((a, i) => (
@@ -769,7 +776,7 @@ const NotificationDetailDialog = ({
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="secondary" gutterBottom>
-                    New ({comp.alerts.only_in_2.length})
+                    {t('history.added', { count: comp.alerts.only_in_2.length })}
                   </Typography>
                   <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
                     {comp.alerts.only_in_2.map((a, i) => (
@@ -793,13 +800,13 @@ const NotificationDetailDialog = ({
         ) : (
           !loading && (
             <Typography color="text.secondary">
-              Failed to load comparison report. Scan data may have been deleted.
+              {t('notifications.failedToLoadReport')}
             </Typography>
           )
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Close</Button>
+        <Button onClick={onClose}>{t('common.close')}</Button>
         <Button
           variant="contained"
           startIcon={<DownloadIcon />}
@@ -807,7 +814,7 @@ const NotificationDetailDialog = ({
           onClick={(e) => setExportAnchor(e.currentTarget)}
           disabled={!notification || !report}
         >
-          Export report
+          {t('common.export')}
         </Button>
         <Menu
           anchorEl={exportAnchor}
@@ -816,9 +823,9 @@ const NotificationDetailDialog = ({
           anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
           transformOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         >
-          <MenuItem onClick={handleExportJson}>JSON (for programs)</MenuItem>
-          <MenuItem onClick={handleExportTxt}>Text report (TXT)</MenuItem>
-          <MenuItem onClick={handleExportPdf}>PDF</MenuItem>
+          <MenuItem onClick={handleExportJson}>{t('notifications.exportJsonPrograms')}</MenuItem>
+          <MenuItem onClick={handleExportTxt}>{t('notifications.exportTextReport')}</MenuItem>
+          <MenuItem onClick={handleExportPdf}>{t('notifications.exportPdf')}</MenuItem>
         </Menu>
       </DialogActions>
     </Dialog>

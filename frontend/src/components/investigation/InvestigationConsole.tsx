@@ -7,6 +7,7 @@ import {
   useTheme,
 } from '@mui/material'
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep'
+import { useTranslation } from 'react-i18next'
 
 export type ConsoleLogLevel = 'INFO' | 'GRPH' | 'CMPL' | 'ERR'
 
@@ -40,6 +41,7 @@ const InvestigationConsole = ({
   onClear,
   maxHeight = 180,
 }: InvestigationConsoleProps) => {
+  const { t } = useTranslation()
   const scrollRef = useRef<HTMLDivElement>(null)
   const theme = useTheme()
   const isDark = theme.palette.mode === 'dark'
@@ -75,9 +77,9 @@ const InvestigationConsole = ({
         }}
       >
         <Typography variant="caption" sx={{ color: '#fff', fontWeight: 600 }}>
-          &gt;_ Console
+          {t('investigations.consoleToolbar')}
         </Typography>
-        <IconButton size="small" onClick={onClear} sx={{ color: 'rgba(255,255,255,0.85)' }} title="Clear">
+        <IconButton size="small" onClick={onClear} sx={{ color: 'rgba(255,255,255,0.85)' }} title={t('common.clear')}>
           <DeleteSweepIcon fontSize="small" />
         </IconButton>
       </Box>

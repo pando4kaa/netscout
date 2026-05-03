@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef } from 'react'
+import type { Core as CytoscapeCore } from 'cytoscape'
 import {
   Container,
   Box,
@@ -10,6 +11,7 @@ import {
   Button,
 } from '@mui/material'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined'
 import DashboardIcon from '@mui/icons-material/Dashboard'
 import DnsIcon from '@mui/icons-material/Dns'
@@ -36,6 +38,7 @@ import GraphView from '../components/graph/GraphView'
 import GraphControls from '../components/graph/GraphControls'
 import HelpTooltip from '../components/common/HelpTooltip'
 import { useScanStore } from '../store/useScanStore'
+import { useLocaleFormatters } from '../i18n/format'
 
 interface TabPanelProps {
   children?: React.ReactNode
@@ -60,17 +63,28 @@ function TabPanel(props: TabPanelProps) {
 }
 
 const ScanPage = () => {
+  const { t } = useTranslation()
+  const { formatDateTime } = useLocaleFormatters()
   const [tabValue, setTabValue] = useState(0)
-  const [cyInstance, setCyInstance] = useState<any>(null)
+  const [cyInstance, setCyInstance] = useState<CytoscapeCore | null>(null)
   const graphWrapperRef = useRef<HTMLDivElement>(null)
   const { currentScan } = useScanStore()
   const navigate = useNavigate()
+
+  const safeScan = useMemo(() => {
+    if (!currentScan) return null
+    return {
+      ...currentScan,
+      target_domain: currentScan.target_domain || 'unknown',
+      subdomains: Array.isArray(currentScan.subdomains) ? currentScan.subdomains : [],
+    }
+  }, [currentScan])
 
   const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue)
   }
 
-  if (!currentScan) {
+  if (!currentScan || !safeScan) {
     return (
       <Container maxWidth="sm">
         <Box
@@ -85,14 +99,13 @@ const ScanPage = () => {
           }}
         >
           <Typography variant="h4" component="h1" sx={{ fontWeight: 600 }}>
-            No scan results yet
+            {t('scan.noResultsTitle')}
           </Typography>
           <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 480 }}>
-            To view results here, go to the home page, enter a domain, and start a scan.
-            When it finishes, you will be brought to this page with the data.
+            {t('scan.noResultsBody')}
           </Typography>
           <Alert severity="info" sx={{ width: '100%', textAlign: 'left' }}>
-            If you opened this tab directly or refreshed without an active scan in progress, return to the home page.
+            {t('scan.noResultsAlert')}
           </Alert>
           <Button
             variant="contained"
@@ -101,21 +114,12 @@ const ScanPage = () => {
             onClick={() => navigate('/')}
             sx={{ mt: 1 }}
           >
-            Home — enter a domain
+            {t('scan.homeCta')}
           </Button>
         </Box>
       </Container>
     )
   }
-
-  const safeScan = useMemo(
-    () => ({
-      ...currentScan,
-      target_domain: currentScan.target_domain || 'unknown',
-      subdomains: Array.isArray(currentScan.subdomains) ? currentScan.subdomains : [],
-    }),
-    [currentScan]
-  )
 
   return (
     <Container maxWidth="xl">
@@ -127,9 +131,9 @@ const ScanPage = () => {
               {currentScan.target_domain}
             </Typography>
             <Typography variant="body1" color="text.secondary">
-              Scan completed • {safeScan.subdomains?.length || 0} subdomains found
+              {t('scan.completedSummary', { count: safeScan.subdomains?.length || 0 })}
               {safeScan.scan_date && (
-                <> • {new Date(safeScan.scan_date).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</>
+                <> {t('scan.completedDate', { date: formatDateTime(safeScan.scan_date) })}</>
               )}
             </Typography>
           </Box>
@@ -154,52 +158,52 @@ const ScanPage = () => {
           >
             <Tab
               icon={<DashboardIcon />}
-              label="Overview"
+              label={t('scan.tabs.overview')}
               iconPosition="start"
             />
             <Tab
               icon={<DnsIcon />}
-              label="DNS Records"
+              label={t('scan.tabs.dns')}
               iconPosition="start"
             />
             <Tab
               icon={<InfoIcon />}
-              label="WHOIS"
+              label={t('scan.tabs.whois')}
               iconPosition="start"
             />
             <Tab
               icon={<ListIcon />}
-              label={`Subdomains (${safeScan.subdomains?.length || 0})`}
+              label={t('scan.tabs.subdomains', { count: safeScan.subdomains?.length || 0 })}
               iconPosition="start"
             />
             <Tab
               icon={<SecurityIcon />}
-              label={`SSL (${safeScan.ssl_info?.certificates?.length || 0})`}
+              label={t('scan.tabs.ssl', { count: safeScan.ssl_info?.certificates?.length || 0 })}
               iconPosition="start"
             />
             <Tab
               icon={<NetworkCheckIcon />}
-              label="Ports"
+              label={t('scan.tabs.ports')}
               iconPosition="start"
             />
             <Tab
               icon={<BuildIcon />}
-              label={`Tech (${Object.keys(safeScan.tech_stack || {}).length})`}
+              label={t('scan.tabs.tech', { count: Object.keys(safeScan.tech_stack || {}).length })}
               iconPosition="start"
             />
             <Tab
               icon={<MapIcon />}
-              label={`Map (${Object.keys(safeScan.geoip_info || {}).length})`}
+              label={t('scan.tabs.map', { count: Object.keys(safeScan.geoip_info || {}).length })}
               iconPosition="start"
             />
             <Tab
               icon={<ApiIcon />}
-              label={`APIs (${Object.keys(safeScan.external_apis || {}).length})`}
+              label={t('scan.tabs.apis', { count: Object.keys(safeScan.external_apis || {}).length })}
               iconPosition="start"
             />
             <Tab
               icon={<AccountTreeIcon />}
-              label="Graph"
+              label={t('scan.tabs.graph')}
               iconPosition="start"
             />
           </Tabs>
@@ -248,13 +252,13 @@ const ScanPage = () => {
         <TabPanel value={tabValue} index={9}>
           <Box ref={graphWrapperRef}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-              <Typography variant="h6">Graph</Typography>
+              <Typography variant="h6">{t('common.graph')}</Typography>
               <HelpTooltip topic="graph_view" />
             </Box>
             <GraphControls cy={cyInstance} graphWrapperRef={graphWrapperRef} />
             {(safeScan.subdomains?.length ?? 0) > 50 && (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                Showing first 50 of {safeScan.subdomains?.length} subdomains in graph
+                {t('scan.graphLimit', { count: safeScan.subdomains?.length })}
               </Typography>
             )}
             <Box sx={{ mt: 2 }}>

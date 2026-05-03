@@ -4,7 +4,6 @@ import {
   CardContent,
   Typography,
   Chip,
-  Grid,
   Table,
   TableBody,
   TableCell,
@@ -13,6 +12,7 @@ import {
   TableRow,
   Paper,
 } from '@mui/material'
+import { useTranslation } from 'react-i18next'
 import { DNSInfo } from '../../types'
 import HelpTooltip from '../common/HelpTooltip'
 
@@ -21,11 +21,13 @@ interface DNSInfoPanelProps {
 }
 
 const DNSInfoPanel = ({ dnsInfo }: DNSInfoPanelProps) => {
+  const { t } = useTranslation()
+
   if (dnsInfo.error) {
     return (
       <Card>
         <CardContent>
-          <Typography color="error">DNS Error: {dnsInfo.error}</Typography>
+          <Typography color="error">{t('results.dnsError')}: {dnsInfo.error}</Typography>
         </CardContent>
       </Card>
     )
@@ -34,7 +36,7 @@ const DNSInfoPanel = ({ dnsInfo }: DNSInfoPanelProps) => {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-        <Typography variant="h6">DNS Records</Typography>
+        <Typography variant="h6">{t('results.dnsRecords')}</Typography>
         <HelpTooltip topic="dns" />
       </Box>
       {/* A Records (IPv4) */}
@@ -52,7 +54,7 @@ const DNSInfoPanel = ({ dnsInfo }: DNSInfoPanelProps) => {
               ))}
             </Box>
           ) : (
-            <Typography color="text.secondary">No A records found</Typography>
+            <Typography color="text.secondary">{t('results.noARecords')}</Typography>
           )}
         </CardContent>
       </Card>
@@ -72,7 +74,7 @@ const DNSInfoPanel = ({ dnsInfo }: DNSInfoPanelProps) => {
               ))}
             </Box>
           ) : (
-            <Typography color="text.secondary">No AAAA records found</Typography>
+            <Typography color="text.secondary">{t('results.noAaaaRecords')}</Typography>
           )}
         </CardContent>
       </Card>
@@ -90,8 +92,8 @@ const DNSInfoPanel = ({ dnsInfo }: DNSInfoPanelProps) => {
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell>Priority</TableCell>
-                    <TableCell>Mail Server</TableCell>
+                    <TableCell>{t('results.priority')}</TableCell>
+                    <TableCell>{t('results.mailServer')}</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -105,7 +107,7 @@ const DNSInfoPanel = ({ dnsInfo }: DNSInfoPanelProps) => {
               </Table>
             </TableContainer>
           ) : (
-            <Typography color="text.secondary">No MX records found</Typography>
+            <Typography color="text.secondary">{t('results.noMxRecords')}</Typography>
           )}
         </CardContent>
       </Card>
@@ -125,7 +127,7 @@ const DNSInfoPanel = ({ dnsInfo }: DNSInfoPanelProps) => {
               ))}
             </Box>
           ) : (
-            <Typography color="text.secondary">No NS records found</Typography>
+            <Typography color="text.secondary">{t('results.noNsRecords')}</Typography>
           )}
         </CardContent>
       </Card>
@@ -135,23 +137,23 @@ const DNSInfoPanel = ({ dnsInfo }: DNSInfoPanelProps) => {
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              Email Security (SPF / DMARC / DKIM)
+              {t('results.emailSecurity')}
               <HelpTooltip topic="dns_email_security" />
             </Typography>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Chip
-                  label={dnsInfo.email_security.spf_present ? 'SPF' : 'No SPF'}
+                  label={dnsInfo.email_security.spf_present ? 'SPF' : t('results.noSpf')}
                   size="small"
                   color={dnsInfo.email_security.spf_present ? 'success' : 'warning'}
                 />
                 <Chip
-                  label={dnsInfo.email_security.dmarc_present ? `DMARC (${dnsInfo.email_security.dmarc_policy || '?'})` : 'No DMARC'}
+                  label={dnsInfo.email_security.dmarc_present ? `DMARC (${dnsInfo.email_security.dmarc_policy || '?'})` : t('results.noDmarc')}
                   size="small"
                   color={dnsInfo.email_security.dmarc_present ? 'success' : 'error'}
                 />
                 {dnsInfo.email_security.dkim_hints && dnsInfo.email_security.dkim_hints.length > 0 && (
-                  <Chip label="DKIM hints" size="small" color="info" />
+                  <Chip label={t('results.dkimHints')} size="small" color="info" />
                 )}
               </Box>
               {dnsInfo.email_security.spf_record && (
@@ -195,7 +197,7 @@ const DNSInfoPanel = ({ dnsInfo }: DNSInfoPanelProps) => {
               ))}
             </Box>
           ) : (
-            <Typography color="text.secondary">No TXT records found</Typography>
+            <Typography color="text.secondary">{t('results.noTxtRecords')}</Typography>
           )}
         </CardContent>
       </Card>
@@ -233,8 +235,8 @@ const DNSInfoPanel = ({ dnsInfo }: DNSInfoPanelProps) => {
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell>IP</TableCell>
-                    <TableCell>Hostname</TableCell>
+                    <TableCell>{t('results.colIp')}</TableCell>
+                    <TableCell>{t('results.colHostname')}</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -259,13 +261,13 @@ const DNSInfoPanel = ({ dnsInfo }: DNSInfoPanelProps) => {
               Zone Transfer (AXFR)
               <HelpTooltip topic="dns_zone_transfer" />
               <Chip
-                label={dnsInfo.zone_transfer_available ? 'Available' : 'Not available'}
+                label={dnsInfo.zone_transfer_available ? t('results.available') : t('results.notAvailable')}
                 size="small"
                 color={dnsInfo.zone_transfer_available ? 'error' : 'default'}
               />
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Attempted: {dnsInfo.zone_transfer_attempted ? 'Yes' : 'No'}
+              {t('results.attempted')}: {dnsInfo.zone_transfer_attempted ? t('common.yes') : t('common.no')}
               {dnsInfo.zone_transfer_error && ` • Error: ${dnsInfo.zone_transfer_error}`}
             </Typography>
           </CardContent>

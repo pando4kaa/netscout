@@ -17,6 +17,7 @@ import {
 } from '@mui/material'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
+import { useTranslation } from 'react-i18next'
 import { ScanResults } from '../../types'
 import AlertsPanel from '../dashboard/AlertsPanel'
 import HelpTooltip from '../common/HelpTooltip'
@@ -26,6 +27,7 @@ interface OverviewPanelProps {
 }
 
 const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
+  const { t } = useTranslation()
   const { dns_info = {}, whois_info = {}, subdomains = [], target_domain } = scanResults
   const riskBreakdown = scanResults.summary?.risk_breakdown || []
   const sortedRiskBreakdown = [...riskBreakdown].sort((a, b) => (b.contribution || 0) - (a.contribution || 0))
@@ -65,7 +67,7 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
               {subdomains?.length || 0}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
-              Subdomains
+              {t('common.subdomains')}
               <HelpTooltip topic="subdomains" size="small" />
             </Typography>
           </Paper>
@@ -84,7 +86,7 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
               {dns_info?.a_records?.length || 0}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
-              IP Addresses
+              {t('results.ipAddresses')}
               <HelpTooltip topic="ip_addresses" size="small" />
             </Typography>
           </Paper>
@@ -103,7 +105,7 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
               {totalDnsRecords}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
-              DNS Records
+              {t('results.dnsRecords')}
               <HelpTooltip topic="dns" size="small" />
             </Typography>
           </Paper>
@@ -122,7 +124,7 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
               {dns_info?.mx_records?.length || 0}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
-              Mail Servers
+              {t('results.mailServers')}
               <HelpTooltip topic="mx_records" size="small" />
             </Typography>
           </Paper>
@@ -154,14 +156,14 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 700, letterSpacing: 0.2 }}>
-                Overall Risk
+                {t('results.overallRisk')}
               </Typography>
               <HelpTooltip topic="risk_score" />
             </Box>
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, ml: { sm: 'auto' } }}>
               <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.8 }}>
-                {hasV3Risk ? 'OWASP-adapted V3' : 'Composite'}
+                {hasV3Risk ? t('results.riskOwaspBadge') : t('results.riskCompositeBadge')}
               </Typography>
               <Typography variant="h3" sx={{ fontWeight: 800, lineHeight: 1 }}>
                 {displayRiskScore.toFixed(2)}
@@ -178,14 +180,12 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
                 arrow
                 placement="top"
                 title={
-                  hasV3Risk
-                    ? 'V3 risk is based on grouped findings, OWASP-style Likelihood × Impact, nonlinear exposure, and evidence confidence.'
-                    : 'Composite risk is calculated as S × w × L, where S is technical severity, w is asset criticality, and L is exploitation likelihood.'
+                  hasV3Risk ? t('results.riskTooltipOwasp') : t('results.riskTooltipComposite')
                 }
               >
                 <Chip
                   icon={<InfoOutlinedIcon sx={{ fontSize: 14 }} />}
-                  label={hasV3Risk ? 'Likelihood × Impact' : 'S × w × L'}
+                  label={hasV3Risk ? t('results.riskChipLikelihoodImpact') : t('results.riskChipSwl')}
                   size="small"
                   variant="outlined"
                   sx={{
@@ -211,25 +211,25 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
               }}
             >
               <Paper variant="outlined" sx={{ p: 1.25, bgcolor: 'rgba(255,255,255,0.55)' }}>
-                <Typography variant="caption" color="text.secondary">Max Severity</Typography>
+                <Typography variant="caption" color="text.secondary">{t('results.metricMaxSeverity')}</Typography>
                 <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
                   {(scanResults.summary?.max_severity ?? 0).toFixed(1)} / 10
                 </Typography>
               </Paper>
               <Paper variant="outlined" sx={{ p: 1.25, bgcolor: 'rgba(255,255,255,0.55)' }}>
-                <Typography variant="caption" color="text.secondary">Exposure</Typography>
+                <Typography variant="caption" color="text.secondary">{t('results.metricExposure')}</Typography>
                 <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
                   {(scanResults.summary?.exposure_score ?? 0).toFixed(1)} / 10
                 </Typography>
               </Paper>
               <Paper variant="outlined" sx={{ p: 1.25, bgcolor: 'rgba(255,255,255,0.55)' }}>
-                <Typography variant="caption" color="text.secondary">Confidence</Typography>
+                <Typography variant="caption" color="text.secondary">{t('results.metricConfidence')}</Typography>
                 <Typography variant="subtitle1" sx={{ fontWeight: 800, textTransform: 'capitalize' }}>
-                  {scanResults.summary?.confidence || 'unknown'}
+                  {scanResults.summary?.confidence || t('common.unknown')}
                 </Typography>
               </Paper>
               <Paper variant="outlined" sx={{ p: 1.25, bgcolor: 'rgba(255,255,255,0.55)' }}>
-                <Typography variant="caption" color="text.secondary">Groups</Typography>
+                <Typography variant="caption" color="text.secondary">{t('results.metricGroups')}</Typography>
                 <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
                   {sortedRiskGroups.length}
                 </Typography>
@@ -425,7 +425,7 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
             <Grid item xs={12} sm={4}>
               <Paper variant="outlined" sx={{ p: 2 }}>
                 <Typography variant="subtitle2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  SSL Certificates
+                  {t('results.sslCertificates')}
                   <HelpTooltip topic="ssl_certificates" size="small" />
                 </Typography>
                 <Typography variant="h5">{scanResults.ssl_info.certificates.length}</Typography>
@@ -436,7 +436,7 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
             <Grid item xs={12} sm={4}>
               <Paper variant="outlined" sx={{ p: 2 }}>
                 <Typography variant="subtitle2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  Open Ports
+                  {t('results.openPorts')}
                   <HelpTooltip topic="port_scan" size="small" />
                 </Typography>
                 <Typography variant="h5">
@@ -449,10 +449,10 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
             <Grid item xs={12} sm={4}>
               <Paper variant="outlined" sx={{ p: 2 }}>
                 <Typography variant="subtitle2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  Tech Detected
+                  {t('results.techDetected')}
                   <HelpTooltip topic="tech_stack" size="small" />
                 </Typography>
-                <Typography variant="h5">{Object.keys(scanResults.tech_stack).length} hosts</Typography>
+                <Typography variant="h5">{t('results.hosts', { count: Object.keys(scanResults.tech_stack).length })}</Typography>
               </Paper>
             </Grid>
           )}
@@ -466,13 +466,13 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                Domain Information
+                {t('results.domainInformation')}
                 <HelpTooltip topic="domain_info" />
               </Typography>
               <List dense>
                 <ListItem>
                   <ListItemText
-                    primary="Domain"
+                    primary={t('common.domain')}
                     secondary={target_domain}
                     secondaryTypographyProps={{ fontFamily: 'monospace', fontWeight: 600 }}
                   />
@@ -480,21 +480,21 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
                 <Divider component="li" />
                 <ListItem>
                   <ListItemText
-                    primary="Registrar"
+                    primary={t('results.registrar')}
                     secondary={whois_info?.registrar || 'N/A'}
                   />
                 </ListItem>
                 <Divider component="li" />
                 <ListItem>
                   <ListItemText
-                    primary="Created"
+                    primary={t('results.created')}
                     secondary={whois_info?.creation_date || 'N/A'}
                   />
                 </ListItem>
                 <Divider component="li" />
                 <ListItem>
                   <ListItemText
-                    primary="Expires"
+                    primary={t('results.expires')}
                     secondary={whois_info?.expiration_date || 'N/A'}
                   />
                 </ListItem>
@@ -508,7 +508,7 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                IP Addresses
+                {t('results.ipAddresses')}
                 <HelpTooltip topic="ip_addresses" />
               </Typography>
               {dns_info?.a_records && dns_info.a_records.length > 0 ? (
@@ -524,7 +524,7 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
                   ))}
                 </Box>
               ) : (
-                <Typography color="text.secondary">No IP addresses found</Typography>
+                <Typography color="text.secondary">{t('results.noIpAddresses')}</Typography>
               )}
 
               {dns_info?.aaaa_records && dns_info.aaaa_records.length > 0 && (
@@ -557,7 +557,7 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                Name Servers
+                {t('results.nameServers')}
                 <HelpTooltip topic="name_servers" />
               </Typography>
               {dns_info?.ns_records && dns_info.ns_records.length > 0 ? (
@@ -567,7 +567,7 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
                   ))}
                 </Box>
               ) : (
-                <Typography color="text.secondary">No name servers found</Typography>
+                <Typography color="text.secondary">{t('results.noNameServers')}</Typography>
               )}
             </CardContent>
           </Card>
@@ -577,7 +577,7 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                Mail Servers (MX)
+                {t('results.mailServersMx')}
                 <HelpTooltip topic="mx_records" />
               </Typography>
               {dns_info?.mx_records && dns_info.mx_records.length > 0 ? (
@@ -592,7 +592,7 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
                   ))}
                 </Box>
               ) : (
-                <Typography color="text.secondary">No mail servers found</Typography>
+                <Typography color="text.secondary">{t('results.noMailServers')}</Typography>
               )}
             </CardContent>
           </Card>
@@ -604,13 +604,13 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              Correlation
+              {t('results.correlation')}
               <HelpTooltip topic="correlation" />
             </Typography>
             <Grid container spacing={2}>
               {scanResults.correlation.ip_to_subdomains && Object.keys(scanResults.correlation.ip_to_subdomains).length > 0 && (
                 <Grid item xs={12} md={6}>
-                  <Typography variant="subtitle2" color="text.secondary">IP → Subdomains</Typography>
+                  <Typography variant="subtitle2" color="text.secondary">{t('results.correlationIpToSubdomains')}</Typography>
                   <Box sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
                     {Object.entries(scanResults.correlation.ip_to_subdomains).slice(0, 10).map(([ip, subs]) => (
                       <Box key={ip}>
@@ -625,7 +625,7 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
               )}
               {scanResults.correlation.ptr_records && Object.keys(scanResults.correlation.ptr_records).length > 0 && (
                 <Grid item xs={12} md={6}>
-                  <Typography variant="subtitle2" color="text.secondary">Reverse DNS (PTR)</Typography>
+                  <Typography variant="subtitle2" color="text.secondary">{t('results.reverseDns')}</Typography>
                   <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                     {Object.entries(scanResults.correlation.ptr_records).map(([ip, host]) => (
                       <Chip
@@ -641,12 +641,12 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
               )}
               {(scanResults.correlation.shared_certificate_hosts?.length ?? 0) > 0 && (
                 <Grid item xs={12}>
-                  <Typography variant="subtitle2" color="text.secondary">Shared SSL certificates</Typography>
+                  <Typography variant="subtitle2" color="text.secondary">{t('results.sharedSslCertificates')}</Typography>
                   <Box sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
                     {scanResults.correlation.shared_certificate_hosts?.slice(0, 5).map((group, index) => (
                       <Box key={`${group.certificate_key}-${index}`}>
                         <Chip
-                          label={`${group.hosts.length} related hosts`}
+                          label={t('results.relatedHosts', { count: group.hosts.length })}
                           size="small"
                           color="info"
                           sx={{ mb: 0.5 }}
@@ -675,10 +675,10 @@ const OverviewPanel = ({ scanResults }: OverviewPanelProps) => {
           <CardContent>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                Subdomains Preview
+                {t('results.subdomainsPreview')}
                 <HelpTooltip topic="subdomains_preview" />
               </Typography>
-              <Chip label={`${subdomains.length} total`} color="primary" size="small" />
+              <Chip label={t('results.total', { count: subdomains.length })} color="primary" size="small" />
             </Box>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
               {subdomains.slice(0, 20).map((sub, index) => (

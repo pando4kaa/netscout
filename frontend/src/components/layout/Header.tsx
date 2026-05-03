@@ -1,16 +1,34 @@
-import { AppBar, Toolbar, Typography, Box, Button, IconButton, Menu, MenuItem, Badge, Switch, ListItemText } from '@mui/material'
+import {
+  AppBar,
+  Toolbar,
+  Typography,
+  Box,
+  Button,
+  IconButton,
+  Menu,
+  MenuItem,
+  Badge,
+  Switch,
+  ListItemText,
+  ToggleButton,
+  ToggleButtonGroup,
+} from '@mui/material'
 import { Link, useLocation } from 'react-router-dom'
 import AccountCircleIcon from '@mui/icons-material/AccountCircle'
 import NotificationsIcon from '@mui/icons-material/Notifications'
+import { useTranslation } from 'react-i18next'
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { authApi, notificationsApi } from '../../services/api'
+import { AppLanguage, LANGUAGE_LABELS, SUPPORTED_LANGUAGES } from '../../i18n'
 
 const Header = () => {
   const location = useLocation()
+  const { t, i18n } = useTranslation()
   const { user, isAuthenticated, logout, updateUser } = useAuth()
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const [unreadCount, setUnreadCount] = useState(0)
+  const currentLanguage = (i18n.language.split('-')[0] as AppLanguage) || 'uk'
 
   useEffect(() => {
     if (!isAuthenticated) return
@@ -34,11 +52,17 @@ const Header = () => {
     }
   }
 
+  const handleLanguageChange = (_: React.MouseEvent<HTMLElement>, nextLanguage: AppLanguage | null) => {
+    if (nextLanguage) {
+      void i18n.changeLanguage(nextLanguage)
+    }
+  }
+
   return (
     <AppBar position="static" elevation={2}>
       <Toolbar>
         <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 600 }}>
-          NetScout
+          {t('common.appName')}
         </Typography>
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
           <Button
@@ -52,7 +76,7 @@ const Header = () => {
               borderRadius: 0,
             }}
           >
-            Home
+            {t('navigation.home')}
           </Button>
           <Button
             component={Link}
@@ -65,7 +89,7 @@ const Header = () => {
               borderRadius: 0,
             }}
           >
-            Scan
+            {t('navigation.scan')}
           </Button>
           <Button
             component={Link}
@@ -78,7 +102,7 @@ const Header = () => {
               borderRadius: 0,
             }}
           >
-            History
+            {t('navigation.history')}
           </Button>
           <Button
             component={Link}
@@ -91,7 +115,7 @@ const Header = () => {
               borderRadius: 0,
             }}
           >
-            Schedules
+            {t('navigation.schedules')}
           </Button>
           {isAuthenticated && (
             <Button
@@ -105,7 +129,7 @@ const Header = () => {
                 borderRadius: 0,
               }}
             >
-              Investigations
+              {t('navigation.investigations')}
             </Button>
           )}
           {isAuthenticated ? (
@@ -115,6 +139,7 @@ const Header = () => {
                 to="/notifications"
                 color="inherit"
                 size="large"
+                aria-label={t('navigation.notifications')}
                 sx={{
                   ml: 1,
                   ...(location.pathname === '/notifications' && {
@@ -133,7 +158,10 @@ const Header = () => {
               <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleClose}>
                 <MenuItem disabled>{user?.username}</MenuItem>
                 <MenuItem disableRipple>
-                  <ListItemText primary="Email notifications for changes" secondary="Send to email" />
+                  <ListItemText
+                    primary={t('navigation.emailNotifications')}
+                    secondary={t('navigation.emailNotificationsHint')}
+                  />
                   <Switch
                     checked={user?.email_notifications_enabled ?? false}
                     onChange={handleEmailNotificationsToggle}
@@ -141,19 +169,45 @@ const Header = () => {
                     color="primary"
                   />
                 </MenuItem>
-                <MenuItem onClick={handleLogout}>Logout</MenuItem>
+                <MenuItem onClick={handleLogout}>{t('navigation.logout')}</MenuItem>
               </Menu>
             </>
           ) : (
             <>
               <Button component={Link} to="/login" color="inherit" sx={{ textTransform: 'none' }}>
-                Sign in
+                {t('navigation.signIn')}
               </Button>
               <Button component={Link} to="/register" color="inherit" variant="outlined" sx={{ textTransform: 'none', borderColor: 'rgba(255,255,255,0.5)' }}>
-                Register
+                {t('navigation.register')}
               </Button>
             </>
           )}
+          <ToggleButtonGroup
+            value={currentLanguage}
+            exclusive
+            size="small"
+            onChange={handleLanguageChange}
+            aria-label={t('navigation.language')}
+            sx={{
+              ml: 1,
+              '& .MuiToggleButton-root': {
+                color: 'inherit',
+                borderColor: 'rgba(255,255,255,0.4)',
+                px: 1,
+                py: 0.25,
+                '&.Mui-selected': {
+                  color: 'primary.contrastText',
+                  bgcolor: 'rgba(255,255,255,0.2)',
+                },
+              },
+            }}
+          >
+            {SUPPORTED_LANGUAGES.map((language) => (
+              <ToggleButton key={language} value={language} aria-label={LANGUAGE_LABELS[language]}>
+                {LANGUAGE_LABELS[language]}
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
         </Box>
       </Toolbar>
     </AppBar>

@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { TextField, Button, Box, Alert, LinearProgress } from '@mui/material'
+import { useTranslation } from 'react-i18next'
+import { translateScanProgressMessage } from '../../i18n/scanProgress'
 import { runScanViaWebSocket } from '../../services/websocket'
 import { useScanStore } from '../../store/useScanStore'
 import { useAuth } from '../../contexts/AuthContext'
@@ -8,6 +10,7 @@ import { ScanResults } from '../../types'
 import { isValidDomain, normalizeDomain } from '../../utils/domainValidator'
 
 const DomainInput = () => {
+  const { t } = useTranslation()
   const [domain, setDomain] = useState('')
   const [isScanning, setIsScanning] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -21,7 +24,7 @@ const DomainInput = () => {
 
   const handleScan = () => {
     if (!validDomain) {
-      setError('Please enter a valid domain')
+      setError(t('validation.validDomain'))
       return
     }
 
@@ -29,17 +32,19 @@ const DomainInput = () => {
     setIsScanning(true)
     setError(null)
     setProgress(0)
-    setProgressMessage('Connecting...')
+    setProgressMessage(t('scan.connecting'))
 
     const cancel = runScanViaWebSocket(normalized, {
       onProgress: (p, msg) => {
         setProgress(p)
-        setProgressMessage(msg)
+        setProgressMessage(translateScanProgressMessage(msg, t))
       },
       onDone: (scanId, results) => {
         try {
+          const resultDomain =
+            typeof results?.target_domain === 'string' ? results.target_domain : normalized
           const scanResults: ScanResults = {
-            target_domain: results?.target_domain || normalized,
+            target_domain: resultDomain,
             subdomains: Array.isArray(results?.subdomains) ? results.subdomains : [],
             ...results,
             scan_id: scanId,
@@ -51,7 +56,7 @@ const DomainInput = () => {
           setProgress(100)
           navigate('/scan')
         } catch (e) {
-          setError(e instanceof Error ? e.message : 'Error processing results')
+          setError(e instanceof Error ? e.message : t('scan.processingResultsError'))
           setIsScanning(false)
         }
       },
@@ -68,11 +73,11 @@ const DomainInput = () => {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 600 }}>
       {!isAuthenticated && (
         <Alert severity="info" sx={{ mb: 1 }}>
-          You can scan without signing in, but results won&apos;t be saved to history. Sign in to save scans and schedule recurring scans.
+          {t('scan.anonymousNotice')}
         </Alert>
       )}
       <TextField
-        label="Domain"
+        label={t('common.domain')}
         value={domain}
         onChange={(e) => setDomain(e.target.value)}
         onKeyPress={(e) => {
@@ -99,7 +104,7 @@ const DomainInput = () => {
         disabled={isScanning || !validDomain}
         sx={{ alignSelf: 'flex-start' }}
       >
-        {isScanning ? 'Scanning...' : 'Start Scan'}
+        {isScanning ? t('scan.scanning') : t('scan.start')}
       </Button>
     </Box>
   )

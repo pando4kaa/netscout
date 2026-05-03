@@ -1,15 +1,17 @@
 import { Box, Drawer, List, ListItem, ListItemButton, ListItemText, Toolbar } from '@mui/material'
 import { Link, useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 
 const drawerWidth = 240
 
 const Sidebar = () => {
   const location = useLocation()
+  const { t } = useTranslation()
 
   const menuItems = [
-    { text: 'Home', path: '/' },
-    { text: 'Scan', path: '/scan' },
-    { text: 'History', path: '/history' },
+    { text: t('navigation.home'), path: '/' },
+    { text: t('navigation.scan'), path: '/scan' },
+    { text: t('navigation.history'), path: '/history' },
   ]
 
   return (

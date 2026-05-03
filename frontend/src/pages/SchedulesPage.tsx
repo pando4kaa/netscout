@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Container,
   Typography,
@@ -25,8 +25,10 @@ import DeleteIcon from '@mui/icons-material/Delete'
 import AddIcon from '@mui/icons-material/Add'
 import ScheduleIcon from '@mui/icons-material/Schedule'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { scanApi } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
+import { useLocaleFormatters } from '../i18n/format'
 
 interface ScheduleItem {
   id: number
@@ -38,6 +40,8 @@ interface ScheduleItem {
 }
 
 const SchedulesPage = () => {
+  const { t } = useTranslation()
+  const { formatDateTime } = useLocaleFormatters()
   const { isAuthenticated } = useAuth()
   const [schedules, setSchedules] = useState<ScheduleItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -46,17 +50,17 @@ const SchedulesPage = () => {
   const [newDomain, setNewDomain] = useState('')
   const [newInterval, setNewInterval] = useState(24)
 
-  const loadSchedules = async () => {
+  const loadSchedules = useCallback(async () => {
     try {
       const data = await scanApi.getSchedules()
       setSchedules(data.schedules || [])
     } catch (err) {
-      setError('Failed to load schedules')
+      setError(t('errors.failedToLoadSchedules'))
       console.error(err)
     } finally {
       setLoading(false)
     }
-  }
+  }, [t])
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -64,7 +68,7 @@ const SchedulesPage = () => {
     } else {
       setLoading(false)
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, loadSchedules])
 
   const handleAdd = async () => {
     if (!newDomain.trim()) return
@@ -75,7 +79,7 @@ const SchedulesPage = () => {
       setNewInterval(24)
       loadSchedules()
     } catch (err) {
-      setError('Failed to create schedule')
+      setError(t('errors.failedToCreateSchedule'))
       console.error(err)
     }
   }
@@ -101,10 +105,7 @@ const SchedulesPage = () => {
   const formatDate = (iso: string | null) => {
     if (!iso) return '-'
     try {
-      return new Date(iso).toLocaleString('en-US', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      })
+      return formatDateTime(iso)
     } catch {
       return iso
     }
@@ -116,16 +117,16 @@ const SchedulesPage = () => {
         <Box sx={{ py: 6, textAlign: 'center' }}>
           <ScheduleIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
           <Typography variant="h5" gutterBottom>
-            Sign in to schedule scans
+            {t('schedules.signInTitle')}
           </Typography>
           <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-            Create an account or sign in to set up recurring domain scans.
+            {t('schedules.signInBody')}
           </Typography>
           <Button component={Link} to="/login" variant="contained" sx={{ mr: 1 }}>
-            Sign in
+            {t('navigation.signIn')}
           </Button>
           <Button component={Link} to="/register" variant="outlined">
-            Register
+            {t('navigation.register')}
           </Button>
         </Box>
       </Container>
@@ -147,14 +148,14 @@ const SchedulesPage = () => {
       <Box sx={{ py: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Typography variant="h4" component="h1">
-            Scheduled Scans
+            {t('schedules.title')}
           </Typography>
           <Button
             variant="contained"
             startIcon={<AddIcon />}
             onClick={() => setDialogOpen(true)}
           >
-            Add schedule
+            {t('schedules.addSchedule')}
           </Button>
         </Box>
         {error && (
@@ -167,18 +168,18 @@ const SchedulesPage = () => {
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell>Domain</TableCell>
-                  <TableCell>Interval</TableCell>
-                  <TableCell>Last run</TableCell>
-                  <TableCell>Enabled</TableCell>
-                  <TableCell align="right">Actions</TableCell>
+                  <TableCell>{t('common.domain')}</TableCell>
+                  <TableCell>{t('common.interval')}</TableCell>
+                  <TableCell>{t('common.lastRun')}</TableCell>
+                  <TableCell>{t('common.enabled')}</TableCell>
+                  <TableCell align="right">{t('common.actions')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {schedules.map((row) => (
                   <TableRow key={row.id}>
                     <TableCell sx={{ fontFamily: 'monospace' }}>{row.domain}</TableCell>
-                    <TableCell>Every {row.interval_hours} h</TableCell>
+                    <TableCell>{t('common.everyHours', { count: row.interval_hours })}</TableCell>
                     <TableCell>{formatDate(row.last_run_at)}</TableCell>
                     <TableCell>
                       <Switch
@@ -201,22 +202,22 @@ const SchedulesPage = () => {
           <Paper sx={{ p: 4, textAlign: 'center' }}>
             <ScheduleIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
             <Typography variant="body1" color="text.secondary" gutterBottom>
-              No scheduled scans. Add a domain to run scans automatically.
+              {t('schedules.empty')}
             </Typography>
             <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setDialogOpen(true)} sx={{ mt: 2 }}>
-              Add schedule
+              {t('schedules.addSchedule')}
             </Button>
           </Paper>
         )}
       </Box>
 
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Add scheduled scan</DialogTitle>
+        <DialogTitle>{t('schedules.addScheduledScan')}</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus
             margin="dense"
-            label="Domain"
+            label={t('common.domain')}
             value={newDomain}
             onChange={(e) => setNewDomain(e.target.value)}
             fullWidth
@@ -224,7 +225,7 @@ const SchedulesPage = () => {
           />
           <TextField
             margin="dense"
-            label="Interval (hours)"
+            label={t('schedules.intervalHours')}
             type="number"
             value={newInterval}
             onChange={(e) => setNewInterval(Math.max(1, parseInt(e.target.value) || 24))}
@@ -233,9 +234,9 @@ const SchedulesPage = () => {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setDialogOpen(false)}>{t('common.cancel')}</Button>
           <Button onClick={handleAdd} variant="contained" disabled={!newDomain.trim()}>
-            Add
+            {t('common.add')}
           </Button>
         </DialogActions>
       </Dialog>

@@ -1,6 +1,8 @@
+import { useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { ThemeProvider, createTheme } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
+import { useTranslation } from 'react-i18next'
 import { AuthProvider } from './contexts/AuthContext'
 import SessionExpiryBridge from './components/auth/SessionExpiryBridge'
 import Layout from './components/layout/Layout'
@@ -94,6 +96,12 @@ const theme = createTheme({
 })
 
 function App() {
+  const { t, i18n } = useTranslation()
+
+  useEffect(() => {
+    document.title = t('common.appTitle')
+  }, [i18n.language, t])
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
