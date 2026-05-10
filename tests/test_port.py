@@ -13,7 +13,7 @@ class TestPortScanner(unittest.TestCase):
     def test_scan_port_closed_returns_none(self, mock_socket):
         mock_sock = MagicMock()
         mock_socket.return_value = mock_sock
-        mock_sock.connect_ex.return_value = 1  # Connection refused
+        mock_sock.connect_ex.return_value = 1
         result = _scan_port("127.0.0.1", 80)
         self.assertIsNone(result)
 
@@ -22,7 +22,7 @@ class TestPortScanner(unittest.TestCase):
         mock_sock = MagicMock()
         mock_socket.return_value = mock_sock
         mock_sock.connect_ex.return_value = 0
-        mock_sock.recv.return_value = b"HTTP/1.1 200 OK"  # Banner grabbing
+        mock_sock.recv.return_value = b"HTTP/1.1 200 OK"
         result = _scan_port("127.0.0.1", 80)
         self.assertIsNotNone(result)
         self.assertEqual(result.port, 80)

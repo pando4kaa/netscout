@@ -1,11 +1,16 @@
 """
-Reverse DNS Enricher — PTR records for IP, find domains pointing to IP.
+Reverse DNS Enricher - PTR records for an IP, finding domains pointing to it.
 """
 
+import logging
+from typing import Any, Callable, Dict
+
+import dns.exception
 import dns.resolver
-from typing import Any, Callable, Dict, List
 
 from src.enrichers.base import AbstractEnricher
+
+logger = logging.getLogger(__name__)
 
 
 class ReverseDnsEnricher(AbstractEnricher):
@@ -14,7 +19,7 @@ class ReverseDnsEnricher(AbstractEnricher):
     name = "reverse_dns"
 
     def enrich(self, domain: str, context: Any = None) -> Dict[str, Any]:
-        """Not used for pipeline; use enrich_for_investigation for Investigation mode."""
+        """Pipeline mode is unused; investigations call `enrich_for_investigation` directly."""
         return {}
 
     def enrich_for_investigation(
@@ -22,21 +27,18 @@ class ReverseDnsEnricher(AbstractEnricher):
         ip: str,
         progress: Callable[[str, int, str], None],
     ) -> tuple:
-        """
-        Resolve PTR records for IP. Returns (new_nodes, new_edges).
-        """
+        """Resolve PTR records for `ip` and return (new_nodes, new_edges)."""
         nodes = []
         edges = []
-        src = f"ip_{ip}"
+        source_id = f"ip_{ip}"
         try:
             ptr_name = ".".join(reversed(ip.split("."))) + ".in-addr.arpa."
-            answers = dns.resolver.resolve(ptr_name, "PTR")
-            for r in answers:
-                name = str(r).rstrip(".") if r else ""
-                if name:
-                    nodes.append({"type": "domain", "value": name})
-                    edges.append({"source": src, "target": f"domain_{name}", "rel": "POINTS_TO"})
-        except Exception:
-            pass
+            for record in dns.resolver.resolve(ptr_name, "PTR"):
+                hostname = str(record).rstrip(".") if record else ""
+                if hostname:
+                    nodes.append({"type": "domain", "value": hostname})
+                    edges.append({"source": source_id, "target": f"domain_{hostname}", "rel": "POINTS_TO"})
+        except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.exception.DNSException) as exc:
+            logger.debug("PTR lookup failed for %s: %s", ip, exc)
         progress("reverse_dns", 100, "Reverse DNS complete")
         return (nodes, edges)

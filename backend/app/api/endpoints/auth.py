@@ -1,5 +1,5 @@
 """
-Auth endpoints — register, login, profile.
+Auth endpoints - register, login, and profile updates.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -19,6 +19,9 @@ from app.services.auth_service import (
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+_MIN_PASSWORD_LENGTH = 6
+_MIN_USERNAME_LENGTH = 3
+
 
 class RegisterRequest(BaseModel):
     email: EmailStr
@@ -37,54 +40,56 @@ class TokenResponse(BaseModel):
     user: dict
 
 
+class UpdateEmailNotificationsRequest(BaseModel):
+    email_notifications_enabled: bool
+
+
+def _serialize_user(user: User) -> dict:
+    return {
+        "id": user.id,
+        "email": user.email,
+        "username": user.username,
+        "email_notifications_enabled": getattr(user, "email_notifications_enabled", False),
+    }
+
+
+def _issue_token_response(user: User) -> TokenResponse:
+    token = create_access_token({"sub": str(user.id), "email": user.email})
+    return TokenResponse(access_token=token, user=_serialize_user(user))
+
+
 @router.post("/register", response_model=TokenResponse)
 def register(request: RegisterRequest, db: Session = Depends(get_db)):
-    """Register new user."""
+    """Register a new user."""
     if get_user_by_email(db, request.email):
         raise HTTPException(status_code=400, detail="Email already registered")
     if get_user_by_username(db, request.username):
         raise HTTPException(status_code=400, detail="Username already taken")
-    if len(request.password) < 6:
-        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
-    if len(request.username) < 3:
-        raise HTTPException(status_code=400, detail="Username must be at least 3 characters")
+    if len(request.password) < _MIN_PASSWORD_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Password must be at least {_MIN_PASSWORD_LENGTH} characters",
+        )
+    if len(request.username) < _MIN_USERNAME_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Username must be at least {_MIN_USERNAME_LENGTH} characters",
+        )
 
     user = create_user(db, request.email, request.username, request.password)
-    token = create_access_token({"sub": str(user.id), "email": user.email})
-    return TokenResponse(
-        access_token=token,
-        user={
-            "id": user.id,
-            "email": user.email,
-            "username": user.username,
-            "email_notifications_enabled": getattr(user, "email_notifications_enabled", False),
-        },
-    )
+    return _issue_token_response(user)
 
 
 @router.post("/login", response_model=TokenResponse)
 def login(request: LoginRequest, db: Session = Depends(get_db)):
-    """Login and get JWT token."""
+    """Authenticate user and return a JWT access token."""
     user = get_user_by_email(db, request.email)
     if not user or not verify_password(request.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
-    token = create_access_token({"sub": str(user.id), "email": user.email})
-    return TokenResponse(
-        access_token=token,
-        user={
-            "id": user.id,
-            "email": user.email,
-            "username": user.username,
-            "email_notifications_enabled": getattr(user, "email_notifications_enabled", False),
-        },
-    )
-
-
-class UpdateEmailNotificationsRequest(BaseModel):
-    email_notifications_enabled: bool
+    return _issue_token_response(user)
 
 
 @router.patch("/me")
@@ -93,13 +98,8 @@ def update_profile(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user_required),
 ):
-    """Update user profile (e.g. email notifications preference)."""
+    """Update user preferences (currently only the email-notifications toggle)."""
     user.email_notifications_enabled = request.email_notifications_enabled
     db.commit()
     db.refresh(user)
-    return {
-        "id": user.id,
-        "email": user.email,
-        "username": user.username,
-        "email_notifications_enabled": user.email_notifications_enabled,
-    }
+    return _serialize_user(user)

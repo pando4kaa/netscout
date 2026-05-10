@@ -15,12 +15,6 @@ from src.integrations.epss_client import get_epss_scores
 RISK_WEIGHTS = {RiskLevel.HIGH: 10.0, RiskLevel.MEDIUM: 5.0, RiskLevel.LOW: 1.0}
 
 
-def _level_value(level: Any) -> str:
-    if hasattr(level, "value"):
-        return str(level.value)
-    return str(level)
-
-
 def _legacy_severity(alert: Alert) -> float:
     return RISK_WEIGHTS.get(alert.level, 1.0)
 

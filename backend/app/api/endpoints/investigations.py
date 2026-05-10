@@ -1,33 +1,49 @@
 """
-Investigation endpoints — CRUD, add entity, run enricher.
-Requires authentication. Neo4j required.
+Investigation endpoints - CRUD, add entity, run enricher.
+Requires authentication and a reachable Neo4j instance.
 """
 
 import asyncio
+import csv
+import logging
+from io import StringIO
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user_required
-from app.db.database import get_db
+from app.db.database import SessionLocal, get_db
 from app.db.models import User
+from app.services.auth_service import decode_token
 from app.services.investigation_service import (
-    list_investigations,
-    create_investigation,
-    get_investigation,
-    update_investigation,
-    delete_investigation,
     add_entity,
+    create_investigation,
+    create_share_link,
+    delete_investigation,
+    get_investigation,
+    get_investigation_by_share_token,
+    list_investigations,
+    require_neo4j_for_investigation,
     run_enricher,
     update_entity_metadata,
-    create_share_link,
-    get_investigation_by_share_token,
-    require_neo4j_for_investigation,
+    update_investigation,
 )
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/investigations", tags=["investigations"])
+
+
+def neo4j_required() -> None:
+    """FastAPI dependency that translates Neo4j availability errors into HTTP 503."""
+    try:
+        require_neo4j_for_investigation()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 class CreateInvestigationRequest(BaseModel):
@@ -63,14 +79,9 @@ class CreateShareLinkRequest(BaseModel):
 async def list_user_investigations(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user_required),
+    _: None = Depends(neo4j_required),
 ):
-    """List investigations for the current user."""
-    try:
-        require_neo4j_for_investigation()
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=str(e))
+    """List investigations belonging to the current user."""
     return {"investigations": list_investigations(db, user.id)}
 
 
@@ -79,30 +90,19 @@ async def create_new_investigation(
     request: CreateInvestigationRequest,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user_required),
+    _: None = Depends(neo4j_required),
 ):
     """Create a new investigation."""
-    try:
-        require_neo4j_for_investigation()
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=str(e))
-    inv = create_investigation(db, user.id, request.name)
-    return inv
+    return create_investigation(db, user.id, request.name)
 
 
 @router.get("/shared/{token}")
 async def get_shared_investigation(
     token: str,
     db: Session = Depends(get_db),
+    _: None = Depends(neo4j_required),
 ):
-    """Get investigation by share token (read-only, no auth required)."""
-    try:
-        require_neo4j_for_investigation()
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=str(e))
+    """Resolve a share token to a read-only investigation payload."""
     inv = get_investigation_by_share_token(db, token)
     if not inv:
         raise HTTPException(status_code=404, detail="Share link not found or expired")
@@ -114,14 +114,9 @@ async def get_investigation_by_id(
     investigation_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user_required),
+    _: None = Depends(neo4j_required),
 ):
-    """Get investigation metadata and graph from Neo4j."""
-    try:
-        require_neo4j_for_investigation()
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=str(e))
+    """Return investigation metadata and the associated Neo4j graph."""
     inv = get_investigation(db, investigation_id, user.id)
     if not inv:
         raise HTTPException(status_code=404, detail="Investigation not found")
@@ -175,15 +170,12 @@ async def patch_entity_metadata(
     request: UpdateEntityMetadataRequest,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user_required),
+    _: None = Depends(neo4j_required),
 ):
     """Update notes and tags for an entity in the investigation graph."""
-    try:
-        require_neo4j_for_investigation()
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=str(e))
-    ok = update_entity_metadata(db, investigation_id, user.id, request.cy_id, request.notes, request.tags)
+    ok = update_entity_metadata(
+        db, investigation_id, user.id, request.cy_id, request.notes, request.tags
+    )
     if not ok:
         raise HTTPException(status_code=404, detail="Investigation or entity not found")
     return {"success": True}
@@ -195,14 +187,9 @@ async def add_entity_to_investigation(
     request: AddEntityRequest,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user_required),
+    _: None = Depends(neo4j_required),
 ):
-    """Add entity to investigation graph manually."""
-    try:
-        require_neo4j_for_investigation()
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=str(e))
+    """Add an entity to the investigation graph manually."""
     result = add_entity(db, investigation_id, user.id, request.entity_type, request.entity_value)
     if not result:
         raise HTTPException(status_code=404, detail="Investigation not found")
@@ -228,11 +215,7 @@ async def export_investigation_csv(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user_required),
 ):
-    """Export investigation nodes and edges as CSV."""
-    import csv
-    from fastapi.responses import StreamingResponse
-    from io import StringIO
-
+    """Export investigation nodes and edges as a CSV download."""
     inv = get_investigation(db, investigation_id, user.id)
     if not inv:
         raise HTTPException(status_code=404, detail="Investigation not found")
@@ -240,21 +223,23 @@ async def export_investigation_csv(
     nodes = graph.get("nodes") or []
     edges = graph.get("edges") or []
 
-    output = StringIO()
-    writer = csv.writer(output)
+    buffer = StringIO()
+    writer = csv.writer(buffer)
     writer.writerow(["type", "id", "value"])
-    for n in nodes:
-        d = n.get("data") or {}
-        writer.writerow(["node", d.get("id", ""), d.get("label", "")])
+    for node in nodes:
+        node_data = node.get("data") or {}
+        writer.writerow(["node", node_data.get("id", ""), node_data.get("label", "")])
     writer.writerow(["type", "source", "target"])
-    for e in edges:
-        d = e.get("data") or {}
-        writer.writerow(["edge", d.get("source", ""), d.get("target", "")])
-    output.seek(0)
+    for edge in edges:
+        edge_data = edge.get("data") or {}
+        writer.writerow(["edge", edge_data.get("source", ""), edge_data.get("target", "")])
+
     return StreamingResponse(
-        iter([output.getvalue()]),
+        iter([buffer.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=investigation_{investigation_id}.csv"},
+        headers={
+            "Content-Disposition": f"attachment; filename=investigation_{investigation_id}.csv"
+        },
     )
 
 
@@ -264,15 +249,9 @@ def run_enricher_on_entity(
     request: RunEnricherRequest,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user_required),
+    _: None = Depends(neo4j_required),
 ):
-    """Run enricher on entity (async via Celery). Returns task_id for polling."""
-    try:
-        require_neo4j_for_investigation()
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=str(e))
-
+    """Run an enricher asynchronously via Celery. Returns the task_id for polling."""
     try:
         from app.tasks.investigation_tasks import run_enricher_task
 
@@ -284,8 +263,10 @@ def run_enricher_on_entity(
             request.enricher_name,
         )
         return {"task_id": task.id, "status": "pending"}
-    except Exception as e:
-        # Fallback to sync if Celery/Redis unavailable
+    except Exception as exc:
+        # Celery/Redis unavailable - run synchronously as a graceful fallback.
+        logger.warning("Falling back to sync enricher %s for %s/%s: %s",
+                       request.enricher_name, request.entity_type, request.entity_value, exc)
         result = run_enricher(
             db,
             investigation_id,
@@ -295,7 +276,9 @@ def run_enricher_on_entity(
             request.enricher_name,
         )
         if not result.get("success"):
-            raise HTTPException(status_code=500, detail=result.get("error", "Enricher failed"))
+            raise HTTPException(
+                status_code=500, detail=result.get("error", "Enricher failed")
+            )
         return result
 
 
@@ -306,7 +289,7 @@ def get_enricher_task_status(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user_required),
 ):
-    """Get Celery task status and result. Used for polling after run-enricher."""
+    """Return the current Celery task status; used for polling after run-enricher."""
     inv = get_investigation(db, investigation_id, user.id)
     if not inv:
         raise HTTPException(status_code=404, detail="Investigation not found")
@@ -317,12 +300,12 @@ def get_enricher_task_status(
         if task.state == "PENDING":
             return {"task_id": task_id, "status": "pending"}
         if task.state == "SUCCESS":
-            result = task.result or {}
-            return {"task_id": task_id, "status": "success", **result}
+            return {"task_id": task_id, "status": "success", **(task.result or {})}
         if task.state == "FAILURE":
             return {"task_id": task_id, "status": "failure", "error": str(task.result)}
         return {"task_id": task_id, "status": task.state.lower()}
-    except Exception:
+    except Exception as exc:
+        logger.debug("Celery backend unavailable for %s: %s", task_id, exc)
         return {"task_id": task_id, "status": "unknown", "error": "Task backend unavailable"}
 
 
@@ -336,28 +319,28 @@ async def websocket_investigation(websocket: WebSocket, investigation_id: str):
     await websocket.accept()
     progress_queue: asyncio.Queue = asyncio.Queue()
 
-    def on_progress(stage: str, progress: int, message: str):
+    def on_progress(stage: str, progress: int, message: str) -> None:
         progress_queue.put_nowait({"stage": stage, "progress": progress, "message": message})
 
-    async def send_progress():
+    async def send_progress() -> None:
         while True:
             msg = await progress_queue.get()
             if msg.get("stage") in ("done", "error"):
                 break
             try:
                 await websocket.send_json(msg)
-            except Exception:
+            except Exception as send_exc:
+                logger.debug("WebSocket progress send failed, stopping: %s", send_exc)
                 break
 
     try:
-        data = await websocket.receive_json()
-        token = data.get("token")
+        request = await websocket.receive_json()
+        token = request.get("token")
         if not token:
             await websocket.send_json({"error": "token required"})
             await websocket.close()
             return
 
-        from app.services.auth_service import decode_token
         payload = decode_token(token)
         if not payload or "sub" not in payload:
             await websocket.send_json({"error": "invalid token"})
@@ -370,50 +353,48 @@ async def websocket_investigation(websocket: WebSocket, investigation_id: str):
             await websocket.close()
             return
 
-        action = data.get("action")
-        if action != "run_enricher":
+        if request.get("action") != "run_enricher":
             await websocket.send_json({"error": "unknown action"})
             await websocket.close()
             return
 
-        entity_type = data.get("entity_type")
-        entity_value = data.get("entity_value")
-        enricher_name = data.get("enricher_name")
+        entity_type = request.get("entity_type")
+        entity_value = request.get("entity_value")
+        enricher_name = request.get("enricher_name")
         if not all([entity_type, entity_value, enricher_name]):
-            await websocket.send_json({"error": "entity_type, entity_value, enricher_name required"})
+            await websocket.send_json(
+                {"error": "entity_type, entity_value, enricher_name required"}
+            )
             await websocket.close()
             return
 
-        from app.db.database import SessionLocal
         db = SessionLocal()
-
         progress_task = asyncio.create_task(send_progress())
-        result = await asyncio.to_thread(
-            run_enricher,
-            db,
-            investigation_id,
-            user_id,
-            entity_type,
-            entity_value,
-            enricher_name,
-            on_progress,
-        )
-        progress_task.cancel()
         try:
-            await progress_task
-        except asyncio.CancelledError:
-            pass
+            result = await asyncio.to_thread(
+                run_enricher,
+                db,
+                investigation_id,
+                user_id,
+                entity_type,
+                entity_value,
+                enricher_name,
+                on_progress,
+            )
+            progress_task.cancel()
+            try:
+                await progress_task
+            except asyncio.CancelledError:
+                pass
 
-        await websocket.send_json({
-            "stage": "done",
-            "progress": 100,
-            **result,
-        })
-        db.close()
+            await websocket.send_json({"stage": "done", "progress": 100, **result})
+        finally:
+            db.close()
     except WebSocketDisconnect:
-        pass
-    except Exception as e:
+        logger.debug("WebSocket investigation client disconnected")
+    except Exception as exc:
+        logger.warning("WebSocket investigation enricher failed: %s", exc)
         try:
-            await websocket.send_json({"error": str(e), "stage": "error"})
-        except Exception:
-            pass
+            await websocket.send_json({"error": str(exc), "stage": "error"})
+        except Exception as send_exc:
+            logger.debug("Failed to push WebSocket error frame: %s", send_exc)

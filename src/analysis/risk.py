@@ -3,12 +3,10 @@ Risk detection — Subdomain Takeover, open ports, expired SSL, outdated tech, e
 """
 
 import re
-import requests
 from typing import Any, Dict, List, Optional, Tuple
 
-from src.core.models import Alert, RiskLevel, DNSInfo, SslInfo, PortScanResult, OpenPort
-from src.config.settings import HTTP_TIMEOUT, USER_AGENT
 from src.analysis.asset_weight import asset_weight, classify_asset, normalize_asset_host
+from src.core.models import Alert, DNSInfo, PortScanResult, RiskLevel, SslInfo
 from src.integrations.nvd_client import search_cves
 
 
@@ -55,36 +53,6 @@ RISKY_PORTS = {
     6379: ("Redis", RiskLevel.HIGH),
     3389: ("RDP", RiskLevel.HIGH),
 }
-
-
-def _check_takeover(subdomain: str, cname: str) -> bool:
-    """Check if subdomain might be vulnerable to takeover."""
-    cname_lower = cname.lower()
-    for target in TAKEOVER_TARGETS:
-        if target in cname_lower:
-            try:
-                resp = requests.get(
-                    f"https://{subdomain}",
-                    headers={"User-Agent": USER_AGENT},
-                    timeout=HTTP_TIMEOUT,
-                    allow_redirects=False,
-                )
-                if resp.status_code == 404:
-                    return True
-            except Exception:
-                pass
-            try:
-                resp = requests.get(
-                    f"http://{subdomain}",
-                    headers={"User-Agent": USER_AGENT},
-                    timeout=HTTP_TIMEOUT,
-                    allow_redirects=False,
-                )
-                if resp.status_code == 404:
-                    return True
-            except Exception:
-                pass
-    return False
 
 
 def detect_subdomain_takeover(
@@ -248,7 +216,7 @@ def detect_security_headers_risks(tech_stack: Optional[Dict[str, Any]]) -> List[
     alerts: List[Alert] = []
     if not tech_stack:
         return alerts
-    for _url, data in tech_stack.items():
+    for url, data in tech_stack.items():
         if not isinstance(data, dict):
             continue
         sec = data.get("security_headers")
@@ -264,12 +232,12 @@ def detect_security_headers_risks(tech_stack: Optional[Dict[str, Any]]) -> List[
                 Alert(
                     type="missing_security_headers",
                     level=RiskLevel.LOW,
-                    message=f"Missing security headers: {', '.join(missing)} — risk of downgrade/clickjacking",
-                    target=_url,
+                    message=f"Missing security headers: {', '.join(missing)} - risk of downgrade/clickjacking",
+                    target=url,
                     details={"missing": missing},
                 )
             )
-        break  # check main URL only
+        break  # only the apex URL is inspected; other URLs duplicate the same headers
     return alerts
 
 

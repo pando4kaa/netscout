@@ -1,3 +1,3 @@
 """
-Analysis layer — normalization, correlation, risk detection.
+Analysis layer - normalization, correlation, risk detection.
 """

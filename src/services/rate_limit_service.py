@@ -1,57 +1,38 @@
 """
-Rate limiting for external APIs using Redis sliding window.
-VirusTotal: 4 req/min.
+Sliding-window rate limiting for external APIs (e.g. VirusTotal: 4 req/min).
 """
 
 import logging
 import time
-from typing import Any, Optional
+
+from src.services._redis import get_shared_redis
 
 logger = logging.getLogger(__name__)
-
-_redis_client: Optional[Any] = None
-
-
-def _get_redis():
-    """Lazy init Redis client."""
-    global _redis_client
-    if _redis_client is not None:
-        return _redis_client
-    try:
-        from src.config.settings import REDIS_URL
-        if not REDIS_URL:
-            return None
-        import redis
-        _redis_client = redis.from_url(REDIS_URL, decode_responses=True)
-        _redis_client.ping()
-        return _redis_client
-    except Exception as e:
-        logger.debug("Redis not available for rate limit: %s", e)
-        return None
 
 
 def acquire(provider: str, max_requests: int = 4, window_seconds: int = 60) -> bool:
     """
-    Sliding window rate limit. Returns True if allowed, False if rate limited.
-    Key: ratelimit:{provider}
+    Sliding-window rate limit. Returns ``True`` when the call is allowed.
+
+    Uses Redis sorted-sets keyed by ``ratelimit:{provider}``.
+    Fails open (returns ``True``) if Redis is unavailable, on the assumption
+    that scans should not block on infrastructure outages.
     """
-    r = _get_redis()
-    if not r:
-        return True  # No Redis = no rate limit
+    client = get_shared_redis()
+    if not client:
+        return True
+
     key = f"ratelimit:{provider}"
     now = time.time()
     window_start = now - window_seconds
     try:
-        pipe = r.pipeline()
+        pipe = client.pipeline()
         pipe.zremrangebyscore(key, 0, window_start)
         pipe.zcard(key)
         pipe.zadd(key, {str(now): now})
         pipe.expire(key, window_seconds + 10)
         results = pipe.execute()
-        count = results[1]
-        if count >= max_requests:
-            return False
+        return results[1] < max_requests
+    except Exception as exc:
+        logger.warning("Rate limit check failed for %s: %s", provider, exc)
         return True
-    except Exception as e:
-        logger.warning("Rate limit check failed for %s: %s", provider, e)
-        return True  # Fail open

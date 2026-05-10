@@ -1,71 +1,34 @@
 """
-Optional CISA KEV client for known exploited vulnerability enrichment.
+Optional CISA KEV client for known-exploited-vulnerability enrichment.
 """
 
-import json
+import logging
 from typing import Any, Dict, Iterable
 
 import requests
 
-from src.config.settings import HTTP_TIMEOUT, REDIS_URL, USER_AGENT
+from src.config.settings import HTTP_TIMEOUT, USER_AGENT
+from src.integrations._redis_cache import cache_get, cache_set
 
+logger = logging.getLogger(__name__)
 
 CISA_KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
-_redis_client = None
-
-
-def _get_redis_client():
-    """Return Redis client when configured; otherwise None."""
-    global _redis_client
-    if _redis_client is not None:
-        return _redis_client
-    if not REDIS_URL:
-        return None
-    try:
-        import redis
-
-        _redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
-        _redis_client.ping()
-        return _redis_client
-    except Exception:
-        _redis_client = None
-        return None
-
-
-def _cache_get(key: str) -> Dict[str, Any] | None:
-    client = _get_redis_client()
-    if not client:
-        return None
-    try:
-        raw = client.get(key)
-        return json.loads(raw) if raw else None
-    except Exception:
-        return None
-
-
-def _cache_set(key: str, value: Dict[str, Any], ttl_seconds: int = 24 * 60 * 60) -> None:
-    client = _get_redis_client()
-    if not client:
-        return
-    try:
-        client.setex(key, ttl_seconds, json.dumps(value))
-    except Exception:
-        pass
+_CATALOG_CACHE_KEY = "cisa-kev:v1:catalog"
+_CATALOG_TTL_SECONDS = 12 * 60 * 60
 
 
 def get_kev_entries(cve_ids: Iterable[str]) -> Dict[str, Dict[str, Any]]:
     """
     Return CISA KEV entries keyed by CVE ID.
 
-    Missing data or network failures return an empty mapping. KEV is used only as
-    an exploitability signal in the risk model.
+    Missing data or network failures return an empty mapping. KEV is used only
+    as an exploitability signal in the risk model.
     """
     requested = {str(cve).upper() for cve in cve_ids if cve}
     if not requested:
         return {}
 
-    cache_key = "cisa-kev:v1:catalog"
-    catalog = _cache_get(cache_key)
+    catalog = cache_get(_CATALOG_CACHE_KEY)
     if catalog is None:
         try:
             response = requests.get(
@@ -73,12 +36,17 @@ def get_kev_entries(cve_ids: Iterable[str]) -> Dict[str, Dict[str, Any]]:
                 headers={"User-Agent": USER_AGENT},
                 timeout=HTTP_TIMEOUT,
             )
-            if response.status_code != 200:
-                return {}
-            catalog = response.json()
-            _cache_set(cache_key, catalog, ttl_seconds=12 * 60 * 60)
-        except Exception:
+        except requests.RequestException as exc:
+            logger.debug("CISA KEV fetch failed: %s", exc)
             return {}
+        if response.status_code != 200:
+            return {}
+        try:
+            catalog = response.json()
+        except ValueError as exc:
+            logger.debug("CISA KEV JSON parse failed: %s", exc)
+            return {}
+        cache_set(_CATALOG_CACHE_KEY, catalog, ttl_seconds=_CATALOG_TTL_SECONDS)
 
     result: Dict[str, Dict[str, Any]] = {}
     for item in catalog.get("vulnerabilities") or []:

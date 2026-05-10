@@ -163,6 +163,8 @@ const InvestigationDetailPage = () => {
   const [shareUrl, setShareUrl] = useState<string | null>(null)
   const [confirmActiveDialog, setConfirmActiveDialog] = useState<ActiveEnricherConfirm | null>(null)
   const [bulkEnricherAnchor, setBulkEnricherAnchor] = useState<null | HTMLElement>(null)
+  /** Anchor for "choose node type" menu when narrowing a mixed selection. */
+  const [narrowByTypeAnchor, setNarrowByTypeAnchor] = useState<null | HTMLElement>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [exportAnchor, setExportAnchor] = useState<null | HTMLElement>(null)
   const [typeFilter, setTypeFilter] = useState<Record<string, boolean>>({
@@ -303,9 +305,8 @@ const InvestigationDetailPage = () => {
     return { targets, unifiedType }
   }, [selectedNodes, allNodes])
 
-  /** Offer filter when selection mixes subdomains with non-hostname types (IP, MX, …). Domain+subdomain alone is bulk-compatible. */
-  const keepSubdomainsOnlyOffered = useMemo(() => {
-    if (selectedNodes.length < 2) return false
+  /** Distinct node types among the current selection (for narrowing mixed selections). */
+  const typesInSelection = useMemo(() => {
     const types = new Set<string>()
     for (const id of selectedNodes) {
       const n = allNodes.find((x) => x.data.id === id)
@@ -313,23 +314,33 @@ const InvestigationDetailPage = () => {
       const d = n.data as Record<string, unknown>
       types.add(String(d.type || 'domain'))
     }
-    if (!types.has('subdomain')) return false
-    const onlyDomainOrSubdomain = [...types].every((t) => t === 'domain' || t === 'subdomain')
-    if (onlyDomainOrSubdomain) return false
-    return types.size > 1
+    return Array.from(types).sort()
   }, [selectedNodes, allNodes])
 
-  const handleKeepSubdomainsOnly = useCallback(() => {
-    const subIds = selectedNodes.filter((id) => {
-      const n = allNodes.find((x) => x.data.id === id)
-      if (!n) return false
-      const d = n.data as Record<string, unknown>
-      return String(d.type || 'domain') === 'subdomain'
-    })
-    if (subIds.length === 0) return
-    canvasRef.current?.setSelectionToIds(subIds)
-    setError(null)
-  }, [selectedNodes, allNodes])
+  /** Mixed types block bulk enrichers until the user keeps one type (domain+subdomain are unified in bulkSelectionInfo). */
+  const needsNarrowByType = useMemo(
+    () =>
+      selectedNodes.length >= 2 &&
+      typesInSelection.length > 1 &&
+      !bulkSelectionInfo?.unifiedType,
+    [selectedNodes.length, typesInSelection.length, bulkSelectionInfo?.unifiedType]
+  )
+
+  const handleKeepSelectionToType = useCallback(
+    (nodeType: string) => {
+      const ids = selectedNodes.filter((id) => {
+        const n = allNodes.find((x) => x.data.id === id)
+        if (!n) return false
+        const d = n.data as Record<string, unknown>
+        return String(d.type || 'domain') === nodeType
+      })
+      if (ids.length === 0) return
+      canvasRef.current?.setSelectionToIds(ids)
+      setError(null)
+      setNarrowByTypeAnchor(null)
+    },
+    [selectedNodes, allNodes]
+  )
 
   const handleSearch = useCallback(() => {
     const q = searchQuery.trim().toLowerCase()
@@ -784,16 +795,33 @@ const InvestigationDetailPage = () => {
               {t('investigations.bulkSingleTypeHint')}
             </Typography>
           )}
-          {keepSubdomainsOnlyOffered && (
-            <Button
-              size="small"
-              variant="outlined"
-              color="secondary"
-              onClick={handleKeepSubdomainsOnly}
-              sx={{ textTransform: 'none' }}
-            >
-              {t('investigations.keepSubdomainsOnly')}
-            </Button>
+          {needsNarrowByType && (
+            <>
+              <Button
+                size="small"
+                variant="outlined"
+                color="secondary"
+                onClick={(e) => setNarrowByTypeAnchor(e.currentTarget)}
+                sx={{ textTransform: 'none' }}
+              >
+                {t('investigations.chooseNodeType')}
+              </Button>
+              <Menu
+                anchorEl={narrowByTypeAnchor}
+                open={Boolean(narrowByTypeAnchor)}
+                onClose={() => setNarrowByTypeAnchor(null)}
+                MenuListProps={{ dense: true }}
+              >
+                {typesInSelection.map((nodeType) => (
+                  <MenuItem
+                    key={nodeType}
+                    onClick={() => handleKeepSelectionToType(nodeType)}
+                  >
+                    {t(`investigations.types.${nodeType}` as 'investigations.types.domain')}
+                  </MenuItem>
+                ))}
+              </Menu>
+            </>
           )}
           <Button
             size="small"
@@ -817,16 +845,20 @@ const InvestigationDetailPage = () => {
                     {t('investigations.bulkMenuMixedHint')}
                   </Typography>
                 </MenuItem>
-                {keepSubdomainsOnlyOffered && (
-                  <MenuItem
-                    onClick={() => {
-                      setBulkEnricherAnchor(null)
-                      handleKeepSubdomainsOnly()
-                    }}
-                  >
-                    {t('investigations.keepSubdomainsOnly')}
-                  </MenuItem>
-                )}
+                {needsNarrowByType &&
+                  typesInSelection.map((nodeType) => (
+                    <MenuItem
+                      key={`narrow-${nodeType}`}
+                      onClick={() => {
+                        setBulkEnricherAnchor(null)
+                        handleKeepSelectionToType(nodeType)
+                      }}
+                    >
+                      {t('investigations.keepOnlyType', {
+                        type: t(`investigations.types.${nodeType}` as 'investigations.types.domain'),
+                      })}
+                    </MenuItem>
+                  ))}
               </>
             )}
             {bulkSelectionInfo?.unifiedType &&
@@ -885,9 +917,13 @@ const InvestigationDetailPage = () => {
           sx={{ mb: 2 }}
           onClose={() => setError(null)}
           action={
-            error === BULK_ENRICHER_MIXED_TYPES_ERROR && keepSubdomainsOnlyOffered ? (
-              <Button color="inherit" size="small" onClick={() => handleKeepSubdomainsOnly()}>
-                {t('investigations.keepSubdomainsOnly')}
+            error === BULK_ENRICHER_MIXED_TYPES_ERROR && needsNarrowByType ? (
+              <Button
+                color="inherit"
+                size="small"
+                onClick={(e) => setNarrowByTypeAnchor(e.currentTarget)}
+              >
+                {t('investigations.chooseNodeType')}
               </Button>
             ) : undefined
           }

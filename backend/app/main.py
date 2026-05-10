@@ -2,21 +2,20 @@
 FastAPI main application
 """
 
-import sys
-import os
 import logging
+import os
+import sys
 from contextlib import asynccontextmanager
 
-# Add project root for src imports (backend/app/main.py -> netscout/)
-_project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-sys.path.insert(0, _project_root)
+# Make project root importable so `src.*` resolves when running uvicorn from backend/.
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, _PROJECT_ROOT)
 
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
 
-from app.api.endpoints import scan, auth, investigations, notifications
-from app.db.database import init_db, get_db
+from app.api.endpoints import auth, investigations, notifications, scan
+from app.db.database import init_db
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +38,13 @@ async def lifespan(app: FastAPI):
         sched = get_scheduler()
         if sched.running:
             sched.shutdown(wait=False)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Scheduler shutdown failed: %s", exc)
+    try:
+        from app.services.neo4j_service import close_driver
+        close_driver()
+    except Exception as exc:
+        logger.warning("Neo4j driver shutdown failed: %s", exc)
 
 
 app = FastAPI(

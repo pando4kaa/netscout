@@ -281,8 +281,8 @@ const en = {
     current: 'Current',
     failedToLoadReport:
       'Failed to load comparison report. Scan data may have been deleted.',
-    exportJsonPrograms: 'JSON (for programs)',
-    exportTextReport: 'Text report (TXT)',
+    exportJsonPrograms: 'JSON',
+    exportTextReport: 'TXT',
     exportPdf: 'PDF',
     tabSsl: 'SSL',
     pdfReportTitle: 'NetScout Report',
@@ -536,7 +536,7 @@ const en = {
     externalApis: 'External APIs',
     directContact: 'Direct contact with target',
     sameTypeBulk: 'Select at least two nodes of the same type (domain, subdomain, or IP) for bulk enricher.',
-    failedToLoad: 'Failed to load investigations. Is Neo4j running?',
+    failedToLoad: 'Failed to load investigations.',
     failedToCreate: 'Failed to create investigation',
     failedToDelete: 'Failed to delete investigation',
     failedToRename: 'Failed to rename investigation',
@@ -567,10 +567,11 @@ const en = {
     activeEnricherSingle:
       "This enricher will directly contact the target (port scan, SSL handshake, or HTTP requests). It may trigger IDS/IPS alerts on the target's side. Continue?",
     bulkSingleTypeHint:
-      'Bulk enricher: choose nodes of one type (e.g. only IPs or only subdomains).',
+      'Bulk enricher: choose nodes of one type.',
     bulkMenuMixedHint:
-      'Select nodes of one type (e.g. only subdomains) for bulk enricher.',
-    keepSubdomainsOnly: 'Keep subdomains only',
+      'Select nodes of one type, or pick a type below to keep only those nodes.',
+    chooseNodeType: 'Choose type',
+    keepOnlyType: 'Keep only: {{type}}',
     externalApiItem: '{{label}} (external)',
     enrichingInProgress: 'Enriching…',
     consoleToolbar: '> Console',

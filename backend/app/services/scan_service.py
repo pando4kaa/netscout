@@ -1,22 +1,25 @@
 """
-Scan service — orchestrates scanning and persistence.
+Scan service - orchestrates scanning and persistence.
 """
 
 import json
+import logging
 import uuid
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from src.core.orchestrator import scan_domain
-from src.core.models import ScanResult
-from src.utils.validators import normalize_domain
 from app.db.models import ScanRecord
+from src.core.models import ScanResult
+from src.core.orchestrator import scan_domain
+from src.utils.validators import normalize_domain
+
+logger = logging.getLogger(__name__)
 
 
-def _generate_scan_id(domain: str) -> str:
-    """Generate unique scan ID."""
+def _generate_scan_id() -> str:
+    """Generate a globally-unique scan ID."""
     return f"scan_{uuid.uuid4().hex[:12]}"
 
 
@@ -27,13 +30,13 @@ def run_scan(
     user_id: Optional[int] = None,
 ) -> tuple[str, ScanResult]:
     """
-    Run scan. Persist to DB only when user_id is provided (authenticated user).
+    Run a scan. Persist to DB only when ``user_id`` is provided (authenticated).
 
     Returns:
         (scan_id, ScanResult)
     """
     domain = normalize_domain(domain)
-    scan_id = _generate_scan_id(domain)
+    scan_id = _generate_scan_id()
     results = scan_domain(domain, on_progress=on_progress)
 
     if user_id is not None:
@@ -46,22 +49,21 @@ def run_scan(
         db.add(record)
         db.commit()
 
-        # Persist to Neo4j if configured
         try:
             from app.services.neo4j_service import persist_scan_to_neo4j
-            persist_scan_to_neo4j(scan_id, domain, results.model_dump(mode="json"))
-        except Exception:
-            pass
 
-        # Create change notifications (compare with previous scan)
+            persist_scan_to_neo4j(scan_id, domain, results.model_dump(mode="json"))
+        except Exception as exc:
+            logger.warning("Neo4j persist failed for scan %s: %s", scan_id, exc)
+
         try:
             from app.services.notification_service import create_notifications_after_scan
+
             create_notifications_after_scan(
-                db, user_id, domain, scan_id,
-                results.model_dump(mode="json"),
+                db, user_id, domain, scan_id, results.model_dump(mode="json"),
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Notification creation failed for scan %s: %s", scan_id, exc)
 
     return scan_id, results
 
@@ -85,44 +87,48 @@ def get_scan_history(
     date_to: Optional[str] = None,
     user_id: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
-    """Get list of recent scans with summary and optional filters. Filter by user_id when provided."""
-    q = db.query(ScanRecord).order_by(ScanRecord.created_at.desc())
+    """Return recent scans with summary stats; filter by user_id when provided."""
+    query = db.query(ScanRecord).order_by(ScanRecord.created_at.desc())
     if user_id is not None:
-        q = q.filter(ScanRecord.user_id == user_id)
+        query = query.filter(ScanRecord.user_id == user_id)
     else:
-        q = q.filter(ScanRecord.user_id.is_(None))  # Anonymous scans only; we never save those, so []
+        # Anonymous scans are never persisted, so this branch always yields [].
+        query = query.filter(ScanRecord.user_id.is_(None))
     if domain:
-        q = q.filter(ScanRecord.domain.ilike(f"%{domain}%"))
+        query = query.filter(ScanRecord.domain.ilike(f"%{domain}%"))
     if date_from:
         try:
-            dt = datetime.fromisoformat(date_from.replace("Z", "+00:00"))
-            q = q.filter(ScanRecord.created_at >= dt)
+            query = query.filter(
+                ScanRecord.created_at >= datetime.fromisoformat(date_from.replace("Z", "+00:00"))
+            )
         except (ValueError, TypeError):
             pass
     if date_to:
         try:
-            dt = datetime.fromisoformat(date_to.replace("Z", "+00:00"))
-            q = q.filter(ScanRecord.created_at <= dt)
+            query = query.filter(
+                ScanRecord.created_at <= datetime.fromisoformat(date_to.replace("Z", "+00:00"))
+            )
         except (ValueError, TypeError):
             pass
-    records = q.offset(offset).limit(limit).all()
-    result = []
-    for r in records:
-        item = {
-            "scan_id": r.scan_id,
-            "domain": r.domain,
-            "created_at": r.created_at.isoformat() if r.created_at else None,
+    records = query.offset(offset).limit(limit).all()
+
+    result: List[Dict[str, Any]] = []
+    for record in records:
+        item: Dict[str, Any] = {
+            "scan_id": record.scan_id,
+            "domain": record.domain,
+            "created_at": record.created_at.isoformat() if record.created_at else None,
         }
-        if r.results:
+        if record.results:
             try:
-                data = json.loads(r.results)
-                summary = data.get("summary") or {}
+                summary = (json.loads(record.results).get("summary") or {})
                 item["total_subdomains"] = summary.get("total_subdomains", 0)
                 item["total_alerts"] = summary.get("total_alerts", 0)
                 item["risk_score"] = summary.get("risk_score", 0)
-                if risk_min is not None and (item.get("risk_score") or 0) < risk_min:
+                risk_score = item.get("risk_score") or 0
+                if risk_min is not None and risk_score < risk_min:
                     continue
-                if risk_max is not None and (item.get("risk_score") or 0) > risk_max:
+                if risk_max is not None and risk_score > risk_max:
                     continue
             except (json.JSONDecodeError, TypeError):
                 pass
@@ -137,15 +143,12 @@ def compare_scans(db: Session, scan_id_1: str, scan_id_2: str) -> tuple[Optional
     """
     from app.services.comparison_service import build_comparison
 
-    r1 = get_scan(db, scan_id_1)
-    r2 = get_scan(db, scan_id_2)
-    if not r1 or not r2:
+    scan_one = get_scan(db, scan_id_1)
+    scan_two = get_scan(db, scan_id_2)
+    if not scan_one or not scan_two:
         return None, "One or both scans not found"
-    d1 = (r1.get("target_domain") or "").lower()
-    d2 = (r2.get("target_domain") or "").lower()
-    if d1 != d2:
+    if (scan_one.get("target_domain") or "").lower() != (scan_two.get("target_domain") or "").lower():
         return None, "Can only compare scans of the same domain"
-    r1["scan_id"] = scan_id_1
-    r2["scan_id"] = scan_id_2
-    comparison = build_comparison(r1, r2)
-    return comparison, None
+    scan_one["scan_id"] = scan_id_1
+    scan_two["scan_id"] = scan_id_2
+    return build_comparison(scan_one, scan_two), None

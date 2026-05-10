@@ -1,13 +1,13 @@
 """
-Tests for Subdomain Enricher
+Tests for the subdomain enricher.
 """
 
 import unittest
 from unittest.mock import patch
 
 from src.enrichers.subdomain import (
-    _extract_subdomains_from_crt,
     SubdomainEnricher,
+    _extract_subdomains_from_crt,
 )
 
 
@@ -26,7 +26,7 @@ class TestExtractSubdomainsFromCrt(unittest.TestCase):
     def test_filters_wildcard(self):
         data = [{"name_value": "*.example.com"}]
         result = _extract_subdomains_from_crt("example.com", data)
-        # Wildcard *.example.com becomes example.com which is root domain, discarded
+        # Stripping the leading wildcard yields the apex itself, which is filtered out.
         self.assertEqual(len(result), 0)
 
     def test_filters_invalid(self):
@@ -39,14 +39,12 @@ class TestExtractSubdomainsFromCrt(unittest.TestCase):
 
 
 class TestSubdomainEnricher(unittest.TestCase):
-    @patch("src.enrichers.subdomain._fetch_crtsh_json")
-    @patch("src.enrichers.subdomain._fetch_crobat")
-    def test_enrich_returns_subdomains(self, mock_crobat, mock_crtsh):
-        mock_crtsh.return_value = [
-            {"name_value": "www.example.com"},
-            {"name_value": "mail.example.com"},
-        ]
-        mock_crobat.return_value = set()
+    @patch("src.enrichers.subdomain._fetch_passive_async")
+    def test_enrich_returns_subdomains(self, mock_passive):
+        async def _fake_passive(_domain):
+            return {"www.example.com", "mail.example.com"}
+
+        mock_passive.side_effect = _fake_passive
         enricher = SubdomainEnricher(enable_bruteforce=False)
         result = enricher.enrich("example.com")
         self.assertIn("subdomains", result)

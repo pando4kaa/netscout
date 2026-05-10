@@ -12,8 +12,9 @@ from urllib.parse import urljoin, urlparse
 import aiohttp
 
 from src.config.settings import HTTP_TIMEOUT, HTTP_VERIFY_SSL, USER_AGENT
+from src.core.models import SecurityHeadersInfo, TechStack
+from src.enrichers._http import make_aiohttp_session
 from src.enrichers.base import AbstractEnricher
-from src.core.models import TechStack, SecurityHeadersInfo
 
 
 TECH_SUBDOMAIN_LIMIT = 100
@@ -166,15 +167,6 @@ async def _detect_tech_async(session: aiohttp.ClientSession, url: str) -> TechSt
         return TechStack(url=url, error=str(e) or "Connection failed")
 
 
-def _make_aiohttp_session(headers: dict, verify_ssl: bool = True) -> aiohttp.ClientSession:
-    """Create aiohttp session with ThreadedResolver (avoids aiodns DNS issues on some systems)."""
-    connector = aiohttp.TCPConnector(
-        resolver=aiohttp.resolver.ThreadedResolver(),
-        ssl=verify_ssl,
-    )
-    return aiohttp.ClientSession(headers=headers, connector=connector)
-
-
 def _is_mail_subdomain(url: str) -> bool:
     """Check if URL hostname suggests a mail server (mx, mail, smtp)."""
     try:
@@ -195,7 +187,7 @@ async def _fetch_tech_stack_async(urls: List[str], verify_ssl: bool = True) -> D
     tech_stack: Dict[str, Any] = {}
     headers = {"User-Agent": USER_AGENT}
 
-    async with _make_aiohttp_session(headers, verify_ssl=verify_ssl) as session:
+    async with make_aiohttp_session(headers, verify_ssl=verify_ssl) as session:
         tasks = [_detect_tech_async(session, url) for url in urls]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         for url, result in zip(urls, results):

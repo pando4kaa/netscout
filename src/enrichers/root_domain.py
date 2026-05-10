@@ -1,5 +1,9 @@
 """
-Root Domain Enricher — extract root domain from domain/subdomain.
+Root Domain Enricher - extract root domain from a domain/subdomain.
+
+NOTE: this uses the naive "last two labels" rule, which is wrong for
+public-suffix TLDs (e.g. ``foo.bar.co.uk`` -> ``co.uk``). When stricter
+behaviour is needed, switch to the ``publicsuffix2`` package.
 """
 
 from typing import Any, Callable, Dict
@@ -8,7 +12,7 @@ from src.enrichers.base import AbstractEnricher
 
 
 def extract_root_domain(domain: str) -> str:
-    """Extract root domain (e.g. sub.example.com -> example.com)."""
+    """Extract the apex domain (e.g. ``sub.example.com`` -> ``example.com``)."""
     domain = domain.lower().strip().rstrip(".")
     parts = domain.split(".")
     if len(parts) >= 2:
@@ -22,7 +26,7 @@ class RootDomainEnricher(AbstractEnricher):
     name = "root_domain"
 
     def enrich(self, domain: str, context: Any = None) -> Dict[str, Any]:
-        """Not used for pipeline; use enrich_for_investigation for Investigation mode."""
+        """Pipeline mode is unused; investigations call `enrich_for_investigation` directly."""
         return {}
 
     def enrich_for_investigation(
@@ -30,12 +34,10 @@ class RootDomainEnricher(AbstractEnricher):
         domain: str,
         progress: Callable[[str, int, str], None],
     ) -> tuple:
-        """
-        Extract root domain. Returns (new_nodes, new_edges).
-        """
+        """Extract root domain for `domain` and return (new_nodes, new_edges)."""
         root = extract_root_domain(domain)
-        src = f"subdomain_{domain}" if domain.count(".") >= 2 else f"domain_{domain}"
+        source_id = f"subdomain_{domain}" if domain.count(".") >= 2 else f"domain_{domain}"
         nodes = [{"type": "domain", "value": root}]
-        edges = [{"source": src, "target": f"domain_{root}", "rel": "ROOT_OF"}]
+        edges = [{"source": source_id, "target": f"domain_{root}", "rel": "ROOT_OF"}]
         progress("root_domain", 100, "Root domain complete")
         return (nodes, edges)

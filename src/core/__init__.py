@@ -1,3 +1,3 @@
 """
-Core domain layer — models, orchestrator, pipeline.
+Core domain layer - models, orchestrator, pipeline.
 """

@@ -1,5 +1,5 @@
 """
-Auth service — JWT tokens, password hashing, user management.
+Auth service - JWT tokens, password hashing, user management.
 """
 
 from datetime import datetime, timedelta
@@ -12,18 +12,28 @@ from sqlalchemy.orm import Session
 from app.db.models import User
 from src.config.settings import JWT_SECRET
 
-SECRET_KEY = JWT_SECRET
+if not JWT_SECRET:
+    # Fail fast at import time so we never sign tokens with an empty key.
+    raise RuntimeError("JWT_SECRET is not set; refusing to start auth service.")
+
+SECRET_KEY: str = JWT_SECRET
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
+# bcrypt rejects passwords longer than 72 bytes; truncate consistently.
+_BCRYPT_PASSWORD_LIMIT = 72
+
+
+def _truncate_password(password: str) -> bytes:
+    return password.encode("utf-8")[:_BCRYPT_PASSWORD_LIMIT]
+
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return bcrypt.checkpw(plain.encode("utf-8")[:72], hashed.encode("utf-8"))
+    return bcrypt.checkpw(_truncate_password(plain), hashed.encode("utf-8"))
 
 
 def get_password_hash(password: str) -> str:
-    pwd_bytes = password.encode("utf-8")[:72]  # bcrypt limit
-    return bcrypt.hashpw(pwd_bytes, bcrypt.gensalt()).decode("utf-8")
+    return bcrypt.hashpw(_truncate_password(password), bcrypt.gensalt()).decode("utf-8")
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -35,8 +45,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 def decode_token(token: str) -> Optional[dict]:
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
+        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except JWTError:
         return None
 
@@ -54,8 +63,7 @@ def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
 
 
 def create_user(db: Session, email: str, username: str, password: str) -> User:
-    hashed = get_password_hash(password)
-    user = User(email=email, username=username, hashed_password=hashed)
+    user = User(email=email, username=username, hashed_password=get_password_hash(password))
     db.add(user)
     db.commit()
     db.refresh(user)
