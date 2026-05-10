@@ -1,5 +1,5 @@
 """
-FastAPI dependencies — auth, optional auth.
+FastAPI dependencies - authentication helpers (optional and required).
 """
 
 from typing import Optional

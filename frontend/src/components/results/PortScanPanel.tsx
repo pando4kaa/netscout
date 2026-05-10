@@ -5,6 +5,7 @@ import {
   Typography,
   Chip,
 } from '@mui/material'
+import { useTranslation } from 'react-i18next'
 import { PortScanResult } from '../../types'
 import HelpTooltip from '../common/HelpTooltip'
 
@@ -13,11 +14,13 @@ interface PortScanPanelProps {
 }
 
 const PortScanPanel = ({ portScan }: PortScanPanelProps) => {
+  const { t } = useTranslation()
+
   if (!portScan?.length) {
     return (
       <Card>
         <CardContent>
-          <Typography color="text.secondary">No port scan data available</Typography>
+          <Typography color="text.secondary">{t('results.noPortData')}</Typography>
         </CardContent>
       </Card>
     )
@@ -26,7 +29,7 @@ const PortScanPanel = ({ portScan }: PortScanPanelProps) => {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-        <Typography variant="h6">Port Scan</Typography>
+        <Typography variant="h6">{t('results.ports')}</Typography>
         <HelpTooltip topic="port_scan" />
       </Box>
       {portScan.map((ps, idx) => (
@@ -34,7 +37,7 @@ const PortScanPanel = ({ portScan }: PortScanPanelProps) => {
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               {ps.ip}
-              <Chip label={`${ps.open_ports?.length ?? 0} open`} size="small" color="primary" />
+              <Chip label={t('results.openPortCount', { count: ps.open_ports?.length ?? 0 })} size="small" color="primary" />
             </Typography>
             {ps.open_ports && ps.open_ports.length > 0 ? (
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2 }}>
@@ -48,7 +51,7 @@ const PortScanPanel = ({ portScan }: PortScanPanelProps) => {
                 ))}
               </Box>
             ) : (
-              <Typography color="text.secondary">No open ports found</Typography>
+              <Typography color="text.secondary">{t('results.noOpenPorts')}</Typography>
             )}
           </CardContent>
         </Card>

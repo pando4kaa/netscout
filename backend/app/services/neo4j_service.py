@@ -1,13 +1,27 @@
 """
-Neo4j graph service — persists scan results and investigation graphs.
+Neo4j graph service - persists scan results and investigation graphs.
+
+The Neo4j driver is a heavyweight object (it owns a connection pool and
+performs auth + protocol handshake) and is intended to live for the lifetime
+of the application. We expose it via :func:`_get_driver` as a process-wide
+singleton; :func:`close_driver` should be called on application shutdown
+(e.g. from a FastAPI ``lifespan`` handler).
 """
 
+import logging
+import threading
 from typing import Any, Dict, List, Optional
 
 from src.config.settings import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
 
+logger = logging.getLogger(__name__)
 
-def _require_neo4j():
+_driver: Optional[Any] = None
+_driver_init_failed: bool = False
+_driver_lock = threading.Lock()
+
+
+def _require_neo4j() -> None:
     """Raise if Neo4j is not available. Investigation mode requires Neo4j."""
     if not NEO4J_PASSWORD:
         raise RuntimeError("Neo4j is required for Investigation mode. Set NEO4J_PASSWORD in .env")
@@ -16,26 +30,64 @@ def _require_neo4j():
 
 
 def _get_driver():
-    """Lazy import and create Neo4j driver."""
-    try:
-        from neo4j import GraphDatabase
-        return GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
-    except ImportError:
+    """
+    Return the process-wide Neo4j driver, creating it on first use.
+
+    Returns ``None`` (and caches the failure) when the ``neo4j`` package is
+    missing, ``NEO4J_PASSWORD`` is empty, or driver construction raises.
+    Construction is guarded by a lock so concurrent requests share one driver.
+    """
+    global _driver, _driver_init_failed
+    if _driver is not None:
+        return _driver
+    if _driver_init_failed or not NEO4J_PASSWORD:
         return None
+
+    with _driver_lock:
+        if _driver is not None:
+            return _driver
+        if _driver_init_failed:
+            return None
+        try:
+            from neo4j import GraphDatabase
+
+            _driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+            return _driver
+        except ImportError as exc:
+            logger.warning("neo4j package is not installed: %s", exc)
+            _driver_init_failed = True
+            return None
+        except Exception as exc:
+            logger.warning("Failed to create Neo4j driver for %s: %s", NEO4J_URI, exc)
+            _driver_init_failed = True
+            return None
+
+
+def close_driver() -> None:
+    """Close the cached Neo4j driver. Safe to call multiple times."""
+    global _driver, _driver_init_failed
+    with _driver_lock:
+        if _driver is not None:
+            try:
+                _driver.close()
+            except Exception as exc:
+                logger.debug("Neo4j driver close raised: %s", exc)
+            _driver = None
+        _driver_init_failed = False
 
 
 def is_neo4j_available() -> bool:
-    """Check if Neo4j is configured and reachable."""
+    """Return ``True`` if Neo4j is configured and reachable."""
     if not NEO4J_PASSWORD:
         return False
+    driver = _get_driver()
+    if not driver:
+        return False
     try:
-        driver = _get_driver()
-        if not driver:
-            return False
         driver.verify_connectivity()
-        driver.close()
         return True
-    except Exception:
+    except Exception as exc:
+        logger.debug("Neo4j connectivity check failed: %s", exc)
         return False
 
 
@@ -54,7 +106,6 @@ def persist_scan_to_neo4j(scan_id: str, domain: str, results: Dict[str, Any]) ->
             return False
 
         with driver.session() as session:
-            # Create or merge root Domain node
             session.run(
                 """
                 MERGE (d:Domain {name: $domain})
@@ -68,7 +119,6 @@ def persist_scan_to_neo4j(scan_id: str, domain: str, results: Dict[str, Any]) ->
             a_records = dns.get("a_records") or []
             aaaa_records = dns.get("aaaa_records") or []
 
-            # IP nodes and RESOLVES_TO
             for ip in a_records + aaaa_records:
                 session.run(
                     """
@@ -81,7 +131,6 @@ def persist_scan_to_neo4j(scan_id: str, domain: str, results: Dict[str, Any]) ->
                     domain=domain,
                 )
 
-            # MX nodes and HAS_MX
             for mx in dns.get("mx_records") or []:
                 host = (mx.get("host") or mx.get("hostname") or "").rstrip(".")
                 if host:
@@ -97,7 +146,6 @@ def persist_scan_to_neo4j(scan_id: str, domain: str, results: Dict[str, Any]) ->
                         priority=mx.get("priority", 0),
                     )
 
-            # NS nodes and HAS_NS
             for ns in dns.get("ns_records") or []:
                 ns_clean = str(ns).rstrip(".")
                 if ns_clean:
@@ -112,7 +160,6 @@ def persist_scan_to_neo4j(scan_id: str, domain: str, results: Dict[str, Any]) ->
                         domain=domain,
                     )
 
-            # Subdomain nodes and HAS_SUBDOMAIN
             for sub in results.get("subdomains") or []:
                 session.run(
                     """
@@ -125,7 +172,6 @@ def persist_scan_to_neo4j(scan_id: str, domain: str, results: Dict[str, Any]) ->
                     domain=domain,
                 )
 
-            # Certificate nodes (from ssl_info)
             for cert in (results.get("ssl_info") or {}).get("certificates") or []:
                 host = cert.get("host", "")
                 if host:
@@ -143,11 +189,10 @@ def persist_scan_to_neo4j(scan_id: str, domain: str, results: Dict[str, Any]) ->
                         domain=domain,
                     )
 
-            # Port nodes (from port_scan)
-            for ps in results.get("port_scan") or []:
-                ip = ps.get("ip", "")
-                for op in ps.get("open_ports") or []:
-                    port = op.get("port", 0)
+            for port_scan in results.get("port_scan") or []:
+                ip = port_scan.get("ip", "")
+                for open_port in port_scan.get("open_ports") or []:
+                    port = open_port.get("port", 0)
                     if ip and port:
                         session.run(
                             """
@@ -159,12 +204,11 @@ def persist_scan_to_neo4j(scan_id: str, domain: str, results: Dict[str, Any]) ->
                             """,
                             ip=ip,
                             port=port,
-                            service=op.get("service", "tcp"),
+                            service=open_port.get("service", "tcp"),
                         )
-
-        driver.close()
         return True
-    except Exception:
+    except Exception as exc:
+        logger.warning("Failed to persist scan %s for %s to Neo4j: %s", scan_id, domain, exc)
         return False
 
 
@@ -317,9 +361,10 @@ def add_investigation_entity(
                     value=entity_value,
                     inv_id=inv_id,
                 )
-        driver.close()
         return node_id
-    except Exception:
+    except Exception as exc:
+        logger.warning("Failed to add %s entity %s to investigation %s: %s",
+                       entity_type, entity_value, inv_id, exc)
         return None
 
 
@@ -336,7 +381,6 @@ def get_investigation_graph(investigation_id: str) -> Dict[str, Any]:
         if not driver:
             return {"nodes": [], "edges": []}
         with driver.session() as session:
-            # Get all nodes
             node_result = session.run(
                 "MATCH (n) WHERE n.investigation_id = $inv_id RETURN n",
                 inv_id=inv_id,
@@ -344,16 +388,15 @@ def get_investigation_graph(investigation_id: str) -> Dict[str, Any]:
             nodes = []
             seen_ids = set()
             for record in node_result:
-                n = record.get("n")
-                if n:
-                    nid = getattr(n, "element_id", None) or str(id(n))
-                    if nid not in seen_ids:
-                        seen_ids.add(nid)
-                        nd = _node_to_dict(n, inv_id)
-                        if nd:
-                            nodes.append(nd)
+                node = record.get("n")
+                if node:
+                    node_id = getattr(node, "element_id", None) or str(id(node))
+                    if node_id not in seen_ids:
+                        seen_ids.add(node_id)
+                        node_dict = _node_to_dict(node, inv_id)
+                        if node_dict:
+                            nodes.append(node_dict)
 
-            # Get all relationships
             rel_result = session.run(
                 """
                 MATCH (a)-[r]->(b)
@@ -365,21 +408,29 @@ def get_investigation_graph(investigation_id: str) -> Dict[str, Any]:
             edges = []
             edges_seen = set()
             for record in rel_result:
-                a, r, b = record.get("a"), record.get("r"), record.get("b")
-                if r is not None and a is not None and b is not None:
-                    src = _node_to_cy_id(a)
-                    tgt = _node_to_cy_id(b)
-                    if src and tgt:
-                        edge_id = f"{src}_{tgt}_{r.type}"
-                        if edge_id not in edges_seen:
-                            edges_seen.add(edge_id)
-                            edges.append({
-                                "data": {"id": edge_id, "source": src, "target": tgt, "edgeType": r.type},
-                            })
+                source_node = record.get("a")
+                relation = record.get("r")
+                target_node = record.get("b")
+                if relation is None or source_node is None or target_node is None:
+                    continue
+                src_cy = _node_to_cy_id(source_node)
+                tgt_cy = _node_to_cy_id(target_node)
+                if src_cy and tgt_cy:
+                    edge_id = f"{src_cy}_{tgt_cy}_{relation.type}"
+                    if edge_id not in edges_seen:
+                        edges_seen.add(edge_id)
+                        edges.append({
+                            "data": {
+                                "id": edge_id,
+                                "source": src_cy,
+                                "target": tgt_cy,
+                                "edgeType": relation.type,
+                            },
+                        })
 
-        driver.close()
         return {"nodes": nodes, "edges": edges}
-    except Exception:
+    except Exception as exc:
+        logger.warning("Failed to load investigation graph %s: %s", inv_id, exc)
         return {"nodes": [], "edges": []}
 
 
@@ -415,16 +466,29 @@ def _node_to_cy_id(node) -> Optional[str]:
     return getattr(node, "element_id", str(id(node)))
 
 
+_LABEL_TO_TYPE = {
+    "IP": "ip",
+    "Subdomain": "subdomain",
+    "MX": "mx",
+    "NS": "ns",
+    "Certificate": "certificate",
+    "Port": "port",
+    "Technology": "technology",
+    "ASN": "asn",
+}
+
+
 def _node_to_dict(node, inv_id: str) -> Optional[Dict]:
-    """Convert Neo4j node to Cytoscape node format."""
+    """Convert a Neo4j node to the Cytoscape node format used by the frontend."""
     if not node:
         return None
     try:
         props = dict(node)
-    except Exception:
+    except Exception as exc:
+        logger.debug("Failed to coerce node properties to dict: %s", exc)
         props = {}
-    nid = _node_to_cy_id(node)
-    if not nid:
+    node_id = _node_to_cy_id(node)
+    if not node_id:
         return None
     label = (
         props.get("name")
@@ -432,32 +496,20 @@ def _node_to_dict(node, inv_id: str) -> Optional[Dict]:
         or props.get("host")
         or props.get("number")
         or f"{props.get('ip', '')}:{props.get('port', '')}"
-        or nid
+        or node_id
     )
     labels = list(node.labels) if hasattr(node, "labels") else []
     node_type = "domain"
-    if "IP" in labels:
-        node_type = "ip"
-    elif "Subdomain" in labels:
-        node_type = "subdomain"
-    elif "MX" in labels:
-        node_type = "mx"
-    elif "NS" in labels:
-        node_type = "ns"
-    elif "Certificate" in labels:
-        node_type = "certificate"
-    elif "Port" in labels:
-        node_type = "port"
-    elif "Technology" in labels:
-        node_type = "technology"
-    elif "ASN" in labels:
-        node_type = "asn"
+    for neo_label, mapped in _LABEL_TO_TYPE.items():
+        if neo_label in labels:
+            node_type = mapped
+            break
     return {
         "data": {
-            "id": nid,
+            "id": node_id,
             "label": str(label)[:50],
             "type": node_type,
-            **{k: v for k, v in props.items() if k not in ("investigation_id",) and v is not None},
+            **{k: v for k, v in props.items() if k != "investigation_id" and v is not None},
         },
     }
 
@@ -506,77 +558,73 @@ def add_enricher_result_to_investigation(
     inv_id = str(investigation_id)
 
     try:
-        rel_created = 0
-        for nd in new_nodes:
-            etype = nd.get("type", "entity")
-            evalue = nd.get("value") or nd.get("name") or nd.get("address") or str(nd.get("port", ""))
-            meta = nd.get("metadata") or {}
+        for new_node in new_nodes:
+            etype = new_node.get("type", "entity")
+            evalue = (
+                new_node.get("value")
+                or new_node.get("name")
+                or new_node.get("address")
+                or str(new_node.get("port", ""))
+            )
+            meta = new_node.get("metadata") or {}
             if etype == "port":
-                meta.setdefault("ip", nd.get("ip", ""))
-                meta.setdefault("port", nd.get("port", 0))
+                meta.setdefault("ip", new_node.get("ip", ""))
+                meta.setdefault("port", new_node.get("port", 0))
             add_investigation_entity(inv_id, etype, evalue, meta)
 
         driver = _get_driver()
         if not driver:
             return False
         with driver.session() as session:
-            for ed in new_edges:
-                src = ed.get("source")
-                tgt = ed.get("target")
-                rel = ed.get("rel", "RELATES_TO")
+            for new_edge in new_edges:
+                src = new_edge.get("source")
+                tgt = new_edge.get("target")
+                rel = new_edge.get("rel", "RELATES_TO")
                 if not src or not tgt:
                     continue
                 src_label, src_key, src_val = _cy_id_to_match(src)
                 tgt_label, tgt_key, tgt_val = _cy_id_to_match(tgt)
                 if not src_label or not tgt_label:
                     continue
-                params = {"inv_id": inv_id}
-                if src_key == "name":
-                    params["src_val"] = src_val
-                    src_match = f"(a:{src_label})"
-                    src_where = "a.name = $src_val AND a.investigation_id = $inv_id"
-                elif src_key == "host":
-                    params["src_val"] = src_val
-                    src_match = f"(a:{src_label})"
-                    src_where = "a.host = $src_val AND a.investigation_id = $inv_id"
-                elif src_key == "address":
-                    params["src_val"] = src_val
-                    src_match = f"(a:{src_label})"
-                    src_where = "a.address = $src_val AND a.investigation_id = $inv_id"
-                else:
-                    continue
-                if tgt_key == "name":
-                    params["tgt_val"] = tgt_val
-                    tgt_match = f"(b:{tgt_label})"
-                    tgt_where = "b.name = $tgt_val AND b.investigation_id = $inv_id"
-                elif tgt_key == "host":
-                    params["tgt_val"] = tgt_val
-                    tgt_match = f"(b:{tgt_label})"
-                    tgt_where = "b.host = $tgt_val AND b.investigation_id = $inv_id"
-                elif tgt_key == "address":
-                    params["tgt_val"] = tgt_val
-                    tgt_match = f"(b:{tgt_label})"
-                    tgt_where = "b.address = $tgt_val AND b.investigation_id = $inv_id"
-                elif tgt_key == "ip" and isinstance(tgt_val, tuple):
-                    params["tgt_ip"] = tgt_val[0]
-                    params["tgt_port"] = tgt_val[1]
-                    tgt_match = f"(b:{tgt_label})"
-                    tgt_where = "b.ip = $tgt_ip AND b.port = $tgt_port AND b.investigation_id = $inv_id"
-                elif tgt_key == "number":
-                    params["tgt_val"] = tgt_val
-                    tgt_match = f"(b:{tgt_label})"
-                    tgt_where = "b.number = $tgt_val AND b.investigation_id = $inv_id"
-                else:
+                params: Dict[str, Any] = {"inv_id": inv_id}
+                src_clause = _build_endpoint_clause("a", src_label, src_key, src_val, params, "src")
+                tgt_clause = _build_endpoint_clause("b", tgt_label, tgt_key, tgt_val, params, "tgt")
+                if not src_clause or not tgt_clause:
                     continue
                 session.run(
-                    f"MATCH {src_match} WHERE {src_where} MATCH {tgt_match} WHERE {tgt_where} MERGE (a)-[r:{rel}]->(b) RETURN r",
+                    f"MATCH {src_clause[0]} WHERE {src_clause[1]} "
+                    f"MATCH {tgt_clause[0]} WHERE {tgt_clause[1]} "
+                    f"MERGE (a)-[r:{rel}]->(b) RETURN r",
                     **params,
                 )
-                rel_created += 1
-        driver.close()
         return True
-    except Exception:
+    except Exception as exc:
+        logger.warning("Failed to add enricher %s result to investigation %s: %s",
+                       enricher_name, inv_id, exc)
         return False
+
+
+def _build_endpoint_clause(
+    var: str,
+    label: str,
+    key: Optional[str],
+    value: Any,
+    params: Dict[str, Any],
+    prefix: str,
+) -> Optional[tuple]:
+    """Build (match, where) clauses for an edge endpoint and populate ``params``."""
+    if key in ("name", "host", "address", "number"):
+        params[f"{prefix}_val"] = value
+        return f"({var}:{label})", f"{var}.{key} = ${prefix}_val AND {var}.investigation_id = $inv_id"
+    if key == "ip" and isinstance(value, tuple) and len(value) >= 2:
+        params[f"{prefix}_ip"] = value[0]
+        params[f"{prefix}_port"] = value[1]
+        return (
+            f"({var}:{label})",
+            f"{var}.ip = ${prefix}_ip AND {var}.port = ${prefix}_port "
+            f"AND {var}.investigation_id = $inv_id",
+        )
+    return None
 
 
 def update_investigation_node_metadata(
@@ -593,7 +641,6 @@ def update_investigation_node_metadata(
     label, key, val = _cy_id_to_match(cy_id)
     if not label or not key:
         return False
-    # Filter out None values and convert for Neo4j
     props = {k: v for k, v in metadata.items() if v is not None}
     if not props:
         return True
@@ -655,11 +702,11 @@ def update_investigation_node_metadata(
                     props=props,
                 )
             else:
-                driver.close()
                 return False
-        driver.close()
         return True
-    except Exception:
+    except Exception as exc:
+        logger.warning("Failed to update node %s metadata in investigation %s: %s",
+                       cy_id, inv_id, exc)
         return False
 
 
@@ -676,7 +723,7 @@ def delete_investigation_graph(investigation_id: str) -> bool:
                 "MATCH (n) WHERE n.investigation_id = $inv_id DETACH DELETE n",
                 inv_id=inv_id,
             )
-        driver.close()
         return True
-    except Exception:
+    except Exception as exc:
+        logger.warning("Failed to delete investigation graph %s: %s", inv_id, exc)
         return False

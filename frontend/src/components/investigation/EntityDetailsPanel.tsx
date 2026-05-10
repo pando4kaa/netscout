@@ -5,7 +5,6 @@ import {
   Box,
   Chip,
   Stack,
-  Divider,
   TextField,
   Button,
   IconButton,
@@ -22,6 +21,7 @@ import InfoIcon from '@mui/icons-material/Info'
 import EditIcon from '@mui/icons-material/Edit'
 import SaveIcon from '@mui/icons-material/Save'
 import CancelIcon from '@mui/icons-material/Cancel'
+import { useTranslation } from 'react-i18next'
 
 interface EntityDetailsPanelProps {
   nodeId: string | null
@@ -42,31 +42,31 @@ const HIDDEN_KEYS = new Set([
   'type',
 ])
 
-const LABEL_MAP: Record<string, string> = {
-  name: 'Name',
-  address: 'IP Address',
-  host: 'Host',
-  port: 'Port',
-  ip: 'IP',
-  number: 'ASN',
-  registrar: 'Registrar',
-  creation_date: 'Created',
-  expiration_date: 'Expires',
-  name_servers: 'Name Servers',
-  emails: 'Emails',
-  status: 'Status',
-  issuer: 'Issuer',
-  is_expired: 'Expired',
-  service: 'Service',
-  source: 'Source',
-  org: 'Organization',
-  notes: 'Notes',
-  tags: 'Tags',
+const LABEL_KEY_MAP: Record<string, string> = {
+  name: 'investigations.name',
+  address: 'investigations.ipAddress',
+  host: 'results.host',
+  port: 'investigations.types.port',
+  ip: 'investigations.types.ip',
+  number: 'investigations.types.asn',
+  registrar: 'results.registrar',
+  creation_date: 'results.created',
+  expiration_date: 'results.expires',
+  name_servers: 'results.nameServers',
+  emails: 'results.contactEmails',
+  status: 'common.status',
+  issuer: 'investigations.issuer',
+  is_expired: 'results.expired',
+  service: 'investigations.service',
+  source: 'investigations.source',
+  org: 'investigations.organization',
+  notes: 'investigations.notes',
+  tags: 'results.tags',
 }
 
-function formatValue(value: unknown): string {
+function formatValue(value: unknown, yes: string, no: string): string {
   if (value === null || value === undefined) return '—'
-  if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+  if (typeof value === 'boolean') return value ? yes : no
   if (Array.isArray(value)) return value.join(', ') || '—'
   if (typeof value === 'object') return JSON.stringify(value)
   return String(value)
@@ -91,6 +91,7 @@ const EntityDetailsPanel = ({
   investigationId,
   onSaveNotesTags,
 }: EntityDetailsPanelProps) => {
+  const { t } = useTranslation()
   const [editingNotesTags, setEditingNotesTags] = useState(false)
   const [notesEdit, setNotesEdit] = useState('')
   const [tagsEdit, setTagsEdit] = useState('')
@@ -100,7 +101,7 @@ const EntityDetailsPanel = ({
     return (
       <Paper sx={{ p: 2, height: '100%' }}>
         <Typography color="text.secondary">
-          Click a node to view details
+          {t('investigations.clickNodeDetails')}
         </Typography>
       </Paper>
     )
@@ -173,7 +174,7 @@ const EntityDetailsPanel = ({
   return (
     <Paper sx={{ p: 2, height: '100%' }}>
       <Typography variant="subtitle2" color="text.secondary">
-        Entity
+        {t('investigations.entity')}
       </Typography>
       <Typography variant="h6" sx={{ mt: 0.5 }}>
         {nodeValue || nodeId}
@@ -188,7 +189,7 @@ const EntityDetailsPanel = ({
       <Accordion defaultExpanded sx={{ boxShadow: 'none', '&::before': { display: 'none' }, mt: 2 }}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="subtitle2" color="text.secondary">
-            Notes & Tags
+            {t('investigations.notesAndTags')}
           </Typography>
         </AccordionSummary>
         <AccordionDetails>
@@ -198,17 +199,17 @@ const EntityDetailsPanel = ({
             size="small"
             multiline
             rows={3}
-            label="Notes"
+            label={t('investigations.notes')}
             value={notesEdit}
             onChange={(e) => setNotesEdit(e.target.value)}
             fullWidth
           />
           <TextField
             size="small"
-            label="Tags (comma-separated)"
+            label={t('investigations.tagsCommaSeparated')}
             value={tagsEdit}
             onChange={(e) => setTagsEdit(e.target.value)}
-            placeholder="e.g. high-risk, legacy"
+            placeholder={t('investigations.tagsPlaceholder')}
             fullWidth
           />
           <Box sx={{ display: 'flex', gap: 1 }}>
@@ -219,7 +220,7 @@ const EntityDetailsPanel = ({
               onClick={handleSave}
               disabled={saving}
             >
-              Save
+              {t('common.save')}
             </Button>
             <Button
               size="small"
@@ -228,7 +229,7 @@ const EntityDetailsPanel = ({
               onClick={handleCancelEdit}
               disabled={saving}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
           </Box>
         </Stack>
@@ -240,7 +241,7 @@ const EntityDetailsPanel = ({
             </Typography>
           ) : (
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              No notes
+              {t('investigations.noNotes')}
             </Typography>
           )}
           {tags.length > 0 && (
@@ -251,7 +252,7 @@ const EntityDetailsPanel = ({
             </Box>
           )}
           {canEdit && (
-            <IconButton size="small" onClick={handleStartEdit} title="Edit notes and tags">
+            <IconButton size="small" onClick={handleStartEdit} title={t('investigations.editNotesAndTags')}>
               <EditIcon fontSize="small" />
             </IconButton>
           )}
@@ -264,7 +265,7 @@ const EntityDetailsPanel = ({
         <Accordion defaultExpanded sx={{ boxShadow: 'none', '&::before': { display: 'none' } }}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Typography variant="subtitle2" color="text.secondary">
-              Properties
+              {t('investigations.properties')}
             </Typography>
           </AccordionSummary>
           <AccordionDetails>
@@ -277,10 +278,10 @@ const EntityDetailsPanel = ({
                     sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
                   >
                     {getIcon(key)}
-                    {LABEL_MAP[key] || key.replace(/_/g, ' ')}
+                    {LABEL_KEY_MAP[key] ? t(LABEL_KEY_MAP[key] as never) : key.replace(/_/g, ' ')}
                   </Typography>
                   <Typography variant="body2" sx={{ mt: 0.25, wordBreak: 'break-word' }}>
-                    {formatValue(value)}
+                    {formatValue(value, t('common.yes'), t('common.no'))}
                   </Typography>
                 </Box>
               ))}

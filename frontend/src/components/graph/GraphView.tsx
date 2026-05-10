@@ -4,10 +4,22 @@ import { Box, Paper, Typography, Chip, Menu, MenuItem } from '@mui/material'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import CenterFocusStrongIcon from '@mui/icons-material/CenterFocusStrong'
+import { useTranslation } from 'react-i18next'
 import { buildGraphElements } from '../../utils/graphBuilder'
 import { ScanResults } from '../../types'
 
 const MINIMAP_SIZE = { w: 140, h: 100 }
+const NODE_TYPE_TRANSLATION_KEYS = {
+  domain: 'investigations.types.domain',
+  subdomain: 'investigations.types.subdomain',
+  ip: 'investigations.types.ip',
+  mx: 'investigations.types.mx',
+  ns: 'investigations.types.ns',
+  certificate: 'investigations.types.certificate',
+  port: 'investigations.types.port',
+  technology: 'investigations.types.technology',
+  asn: 'investigations.types.asn',
+} as const
 
 function MinimapOverlay({ cy, container }: { cy: Core; container: HTMLDivElement }) {
   const extent = cy.extent()
@@ -36,8 +48,8 @@ function MinimapOverlay({ cy, container }: { cy: Core; container: HTMLDivElement
       elevation={2}
       sx={{
         position: 'absolute',
-        bottom: 16,
-        right: 16,
+        bottom: { xs: 8, sm: 16 },
+        right: { xs: 8, sm: 16 },
         zIndex: 10,
         width: MINIMAP_SIZE.w,
         height: MINIMAP_SIZE.h,
@@ -45,6 +57,7 @@ function MinimapOverlay({ cy, container }: { cy: Core; container: HTMLDivElement
         overflow: 'hidden',
         borderRadius: 1,
         border: '1px solid #e0e0e0',
+        display: { xs: 'none', sm: 'block' },
       }}
     >
       <Box
@@ -79,11 +92,23 @@ interface GraphViewProps {
 }
 
 const GraphView = ({ data, setCyInstance }: GraphViewProps) => {
+  const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
   const cyRef = useRef<Core | null>(null)
   const [contextMenu, setContextMenu] = useState<{ node: NodeSingular; x: number; y: number } | null>(null)
   const [, setMinimapUpdate] = useState(0)
+
+  const getNodeTypeLabel = useCallback(
+    (type: unknown) => {
+      const key =
+        typeof type === 'string'
+          ? NODE_TYPE_TRANSLATION_KEYS[type as keyof typeof NODE_TYPE_TRANSLATION_KEYS]
+          : undefined
+      return key ? t(key) : String(type ?? '-')
+    },
+    [t]
+  )
 
   const showTooltip = useCallback((node: NodeSingular, event: any) => {
     if (!tooltipRef.current) return
@@ -94,14 +119,14 @@ const GraphView = ({ data, setCyInstance }: GraphViewProps) => {
     const displayLabel = nodeData.fullLabel || nodeData.label
     tooltip.innerHTML = `
       <div style="font-weight: 600; margin-bottom: 4px; word-break: break-all;">${displayLabel}</div>
-      <div style="font-size: 12px; color: #666;">Type: ${nodeData.type}</div>
-      ${nodeData.count ? `<div style="font-size: 12px; color: #666;">Count: ${nodeData.count}</div>` : ''}
+      <div style="font-size: 12px; color: #666;">${t('results.type')}: ${getNodeTypeLabel(nodeData.type)}</div>
+      ${nodeData.count ? `<div style="font-size: 12px; color: #666;">${t('results.count')}: ${nodeData.count}</div>` : ''}
     `
     
     tooltip.style.display = 'block'
     tooltip.style.left = `${event.renderedPosition.x + 15}px`
     tooltip.style.top = `${event.renderedPosition.y + 15}px`
-  }, [])
+  }, [getNodeTypeLabel, t])
 
   const hideTooltip = useCallback(() => {
     if (tooltipRef.current) {
@@ -398,7 +423,7 @@ const GraphView = ({ data, setCyInstance }: GraphViewProps) => {
             'opacity': 0.1,
           },
         },
-      ],
+      ] as any,
       layout: {
         name: 'concentric',
         concentric: function(node: any) {
@@ -420,7 +445,7 @@ const GraphView = ({ data, setCyInstance }: GraphViewProps) => {
 
     // Collect path from node back to root (domain) - full chain
     const getPathToRoot = (node: NodeSingular) => {
-      let path = node.union()
+      let path = cy.collection(node)
       let current = node.predecessors()
       const seen = new Set<string>([node.id()])
       while (current.length > 0) {
@@ -557,14 +582,15 @@ const GraphView = ({ data, setCyInstance }: GraphViewProps) => {
       <Paper
         sx={{
           width: '100%',
-          height: '600px',
+          minHeight: { xs: 280, md: 600 },
+          height: { xs: 'min(48vh, 440px)', sm: 'min(52vh, 520px)', md: '600px' },
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           bgcolor: '#fafafa',
         }}
       >
-        <Typography color="text.secondary">No data available</Typography>
+        <Typography color="text.secondary">{t('results.noData')}</Typography>
       </Paper>
     )
   }
@@ -614,15 +640,15 @@ const GraphView = ({ data, setCyInstance }: GraphViewProps) => {
       >
         <MenuItem onClick={handleContextMenuCopy}>
           <ContentCopyIcon fontSize="small" sx={{ mr: 1 }} />
-          Copy
+          {t('common.copy')}
         </MenuItem>
         <MenuItem onClick={handleContextMenuOpen}>
           <OpenInNewIcon fontSize="small" sx={{ mr: 1 }} />
-          Open in new tab
+          {t('results.openInNewTab')}
         </MenuItem>
         <MenuItem onClick={handleContextMenuFocus}>
           <CenterFocusStrongIcon fontSize="small" sx={{ mr: 1 }} />
-          Focus
+          {t('results.focus')}
         </MenuItem>
       </Menu>
 
@@ -630,10 +656,13 @@ const GraphView = ({ data, setCyInstance }: GraphViewProps) => {
       <Paper
         sx={{
           position: 'absolute',
-          top: 16,
-          left: 16,
+          top: { xs: 8, sm: 16 },
+          left: { xs: 8, sm: 16 },
           zIndex: 10,
-          p: 1.5,
+          p: { xs: 1, sm: 1.5 },
+          maxWidth: { xs: 'calc(100% - 16px)', sm: 220 },
+          maxHeight: { xs: '38vh', sm: 'none' },
+          overflow: { xs: 'auto', sm: 'visible' },
           bgcolor: 'rgba(255,255,255,0.95)',
           backdropFilter: 'blur(4px)',
           display: 'flex',
@@ -641,34 +670,34 @@ const GraphView = ({ data, setCyInstance }: GraphViewProps) => {
           gap: 0.5,
         }}
       >
-        <Typography variant="caption" sx={{ fontWeight: 600, mb: 0.5 }}>Legend</Typography>
+        <Typography variant="caption" sx={{ fontWeight: 600, mb: 0.5 }}>{t('results.legend')}</Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Box sx={{ width: 16, height: 16, borderRadius: '50%', background: 'linear-gradient(135deg, #42a5f5 0%, #1565c0 100%)' }} />
-          <Typography variant="caption">Domain</Typography>
+          <Typography variant="caption">{t('investigations.types.domain')}</Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Box sx={{ width: 14, height: 14, borderRadius: '50%', background: 'linear-gradient(135deg, #66bb6a 0%, #388e3c 100%)' }} />
-          <Typography variant="caption">Subdomain</Typography>
+          <Typography variant="caption">{t('investigations.types.subdomain')}</Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Box sx={{ width: 14, height: 14, borderRadius: 1, background: 'linear-gradient(135deg, #ffb74d 0%, #f57c00 100%)' }} />
-          <Typography variant="caption">IP Address</Typography>
+          <Typography variant="caption">{t('investigations.types.ip')}</Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Box sx={{ width: 14, height: 14, transform: 'rotate(45deg)', background: 'linear-gradient(135deg, #ba68c8 0%, #7b1fa2 100%)' }} />
-          <Typography variant="caption">Mail Server</Typography>
+          <Typography variant="caption">{t('results.mailServer')}</Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Box sx={{ width: 14, height: 14, borderRadius: '3px', background: 'linear-gradient(135deg, #4dd0e1 0%, #00acc1 100%)' }} />
-          <Typography variant="caption">Name Server</Typography>
+          <Typography variant="caption">{t('results.nameServers')}</Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Box sx={{ width: 12, height: 12, borderRadius: 1, bgcolor: '#78909c' }} />
-          <Typography variant="caption">Certificate</Typography>
+          <Typography variant="caption">{t('investigations.types.certificate')}</Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Box sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: '#90a4ae' }} />
-          <Typography variant="caption">Port</Typography>
+          <Typography variant="caption">{t('investigations.types.port')}</Typography>
         </Box>
       </Paper>
 
@@ -700,7 +729,8 @@ const GraphView = ({ data, setCyInstance }: GraphViewProps) => {
         elevation={0}
         sx={{
           width: '100%',
-          height: '600px',
+          minHeight: { xs: 280, md: 600 },
+          height: { xs: 'min(48vh, 440px)', sm: 'min(52vh, 520px)', md: '600px' },
           bgcolor: '#fafafa',
           backgroundImage: `
             radial-gradient(circle, #e0e0e0 1px, transparent 1px)
@@ -713,11 +743,11 @@ const GraphView = ({ data, setCyInstance }: GraphViewProps) => {
 
       {/* Tips */}
       <Box sx={{ mt: 1, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-        <Chip label="Scroll to zoom" size="small" variant="outlined" />
-        <Chip label="Drag to pan" size="small" variant="outlined" />
-        <Chip label="Double-click to focus" size="small" variant="outlined" />
-        <Chip label="Hover for details" size="small" variant="outlined" />
-        <Chip label="Zoom in to see labels" size="small" variant="outlined" />
+        <Chip label={t('results.scrollToZoom')} size="small" variant="outlined" />
+        <Chip label={t('results.dragToPan')} size="small" variant="outlined" />
+        <Chip label={t('results.doubleClickFocus')} size="small" variant="outlined" />
+        <Chip label={t('results.hoverForDetails')} size="small" variant="outlined" />
+        <Chip label={t('results.zoomInForLabels')} size="small" variant="outlined" />
       </Box>
     </Box>
   )

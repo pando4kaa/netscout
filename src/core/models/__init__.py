@@ -1,15 +1,22 @@
 """
-Pydantic models — single source of truth for data schemas.
+Pydantic models - single source of truth for data schemas.
 """
 
-from .dns import DNSInfo, MXRecord, EmailSecurityInfo
-from .whois import WhoisInfo
-from .subdomain import SubdomainInfo
-from .ssl import SslInfo, CertificateInfo
-from .port import PortScanResult, OpenPort
+from .dns import DNSInfo, EmailSecurityInfo, MXRecord
+from .port import OpenPort, PortScanResult
 from .risk import Alert, RiskLevel
-from .tech import TechStack, SecurityHeadersInfo
-from .scan import ScanResult, ScanRequest, ScanSummary
+from .scan import (
+    RiskBreakdownItem,
+    RiskFactorItem,
+    RiskGroupItem,
+    ScanRequest,
+    ScanResult,
+    ScanSummary,
+)
+from .ssl import CertificateInfo, SslInfo
+from .subdomain import SubdomainInfo
+from .tech import SecurityHeadersInfo, TechStack
+from .whois import WhoisInfo
 
 __all__ = [
     "DNSInfo",
@@ -28,4 +35,7 @@ __all__ = [
     "ScanResult",
     "ScanRequest",
     "ScanSummary",
+    "RiskBreakdownItem",
+    "RiskFactorItem",
+    "RiskGroupItem",
 ]

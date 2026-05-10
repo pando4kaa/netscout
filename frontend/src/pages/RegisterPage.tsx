@@ -10,10 +10,12 @@ import {
   Link,
 } from '@mui/material'
 import { Link as RouterLink, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { authApi } from '../services/api'
 
 const RegisterPage = () => {
+  const { t } = useTranslation()
   const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -32,7 +34,7 @@ const RegisterPage = () => {
       navigate('/')
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-      setError(typeof msg === 'string' ? msg : 'Registration failed')
+      setError(typeof msg === 'string' ? msg : t('auth.registrationFailed'))
     } finally {
       setLoading(false)
     }
@@ -43,10 +45,10 @@ const RegisterPage = () => {
       <Box sx={{ py: 6 }}>
         <Paper sx={{ p: 3 }}>
           <Typography variant="h5" component="h1" gutterBottom align="center">
-            Create account
+            {t('auth.createAccount')}
           </Typography>
           <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 2 }}>
-            Register to save scans and schedule recurring scans
+            {t('auth.registerSubtitle')}
           </Typography>
           {error && (
             <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -58,32 +60,35 @@ const RegisterPage = () => {
               margin="normal"
               required
               fullWidth
-              label="Email"
+              label={t('auth.email')}
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
+              InputLabelProps={{ shrink: true }}
             />
             <TextField
               margin="normal"
               required
               fullWidth
-              label="Username"
+              label={t('auth.username')}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
-              helperText="At least 3 characters"
+              helperText={t('auth.usernameHelp')}
+              InputLabelProps={{ shrink: true }}
             />
             <TextField
               margin="normal"
               required
               fullWidth
-              label="Password"
+              label={t('auth.password')}
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="new-password"
-              helperText="At least 6 characters"
+              helperText={t('auth.passwordHelp')}
+              InputLabelProps={{ shrink: true }}
             />
             <Button
               type="submit"
@@ -92,13 +97,13 @@ const RegisterPage = () => {
               sx={{ mt: 3, mb: 2 }}
               disabled={loading}
             >
-              {loading ? 'Creating account...' : 'Register'}
+              {loading ? t('auth.creatingAccount') : t('navigation.register')}
             </Button>
           </form>
           <Typography variant="body2" color="text.secondary" align="center">
-            Already have an account?{' '}
+            {t('auth.haveAccount')}{' '}
             <Link component={RouterLink} to="/login">
-              Sign in
+              {t('navigation.signIn')}
             </Link>
           </Typography>
         </Paper>

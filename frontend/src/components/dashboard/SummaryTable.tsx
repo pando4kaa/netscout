@@ -8,6 +8,7 @@ import {
   Paper,
   Typography,
 } from '@mui/material'
+import { useTranslation } from 'react-i18next'
 import { ScanResults } from '../../types'
 
 interface SummaryTableProps {
@@ -15,31 +16,32 @@ interface SummaryTableProps {
 }
 
 const SummaryTable = ({ scanResults }: SummaryTableProps) => {
+  const { t } = useTranslation()
   return (
     <TableContainer component={Paper}>
       <Typography variant="h6" sx={{ p: 2 }}>
-        Scan Summary
+        {t('results.scanSummary')}
       </Typography>
       <Table>
         <TableHead>
           <TableRow>
-            <TableCell>Type</TableCell>
-            <TableCell>Value</TableCell>
+            <TableCell>{t('results.columnType')}</TableCell>
+            <TableCell>{t('results.value')}</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
           <TableRow>
-            <TableCell>Domain</TableCell>
+            <TableCell>{t('common.domain')}</TableCell>
             <TableCell>{scanResults.target_domain}</TableCell>
           </TableRow>
           <TableRow>
-            <TableCell>Subdomains Found</TableCell>
+            <TableCell>{t('results.subdomainsFound')}</TableCell>
             <TableCell>{scanResults.subdomains?.length || 0}</TableCell>
           </TableRow>
           <TableRow>
-            <TableCell>IP Addresses</TableCell>
+            <TableCell>{t('results.ipAddresses')}</TableCell>
             <TableCell>
-              {scanResults.dns_info?.a_records?.join(', ') || 'N/A'}
+              {scanResults.dns_info?.a_records?.join(', ') || t('common.notApplicable')}
             </TableCell>
           </TableRow>
         </TableBody>

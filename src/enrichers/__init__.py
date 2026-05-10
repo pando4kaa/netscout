@@ -1,3 +1,3 @@
 """
-OSINT enrichers — modules that enrich scan context with data.
+OSINT enrichers - modules that enrich scan context with data.
 """

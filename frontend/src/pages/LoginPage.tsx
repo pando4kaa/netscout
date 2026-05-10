@@ -10,10 +10,12 @@ import {
   Link,
 } from '@mui/material'
 import { Link as RouterLink, useNavigate, useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { authApi } from '../services/api'
 
 const LoginPage = () => {
+  const { t } = useTranslation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -33,7 +35,7 @@ const LoginPage = () => {
       navigate('/')
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-      setError(typeof msg === 'string' ? msg : 'Login failed')
+      setError(typeof msg === 'string' ? msg : t('auth.loginFailed'))
     } finally {
       setLoading(false)
     }
@@ -44,14 +46,14 @@ const LoginPage = () => {
       <Box sx={{ py: 6 }}>
         <Paper sx={{ p: 3 }}>
           <Typography variant="h5" component="h1" gutterBottom align="center">
-            Sign in
+            {t('auth.signInTitle')}
           </Typography>
           <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 2 }}>
-            Sign in to save scans and schedule recurring scans
+            {t('auth.signInSubtitle')}
           </Typography>
           {sessionExpired && (
             <Alert severity="info" sx={{ mb: 2 }}>
-              Your session has expired. Please sign in again.
+              {t('auth.sessionExpired')}
             </Alert>
           )}
           {error && (
@@ -64,21 +66,23 @@ const LoginPage = () => {
               margin="normal"
               required
               fullWidth
-              label="Email"
+              label={t('auth.email')}
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
+              InputLabelProps={{ shrink: true }}
             />
             <TextField
               margin="normal"
               required
               fullWidth
-              label="Password"
+              label={t('auth.password')}
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
+              InputLabelProps={{ shrink: true }}
             />
             <Button
               type="submit"
@@ -87,13 +91,13 @@ const LoginPage = () => {
               sx={{ mt: 3, mb: 2 }}
               disabled={loading}
             >
-              {loading ? 'Signing in...' : 'Sign in'}
+              {loading ? t('auth.signingIn') : t('navigation.signIn')}
             </Button>
           </form>
           <Typography variant="body2" color="text.secondary" align="center">
-            Don&apos;t have an account?{' '}
+            {t('auth.noAccount')}{' '}
             <Link component={RouterLink} to="/register">
-              Register
+              {t('navigation.register')}
             </Link>
           </Typography>
         </Paper>

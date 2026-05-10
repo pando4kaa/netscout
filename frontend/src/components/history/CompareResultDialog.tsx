@@ -23,6 +23,8 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import TrendingUpIcon from '@mui/icons-material/TrendingUp'
 import TrendingDownIcon from '@mui/icons-material/TrendingDown'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { useLocaleFormatters } from '../../i18n/format'
 
 export interface CompareResultData {
   scan_1: { scan_id?: string; domain?: string; date?: string; risk_score?: number; subdomains_count?: number; ips_count?: number; alerts_count?: number }
@@ -60,38 +62,35 @@ interface CompareResultDialogProps {
   loading: boolean
 }
 
-function formatDate(iso: string | undefined): string {
-  if (!iso) return '-'
-  try {
-    return new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
-  } catch {
-    return iso
-  }
-}
-
 function ListBlock({ items, max = 30 }: { items: string[]; max?: number }) {
+  const { t } = useTranslation()
+
   return (
     <Box sx={{ maxHeight: 150, overflow: 'auto' }}>
       {items.slice(0, max).map((s, i) => (
         <Typography key={i} variant="caption" component="div" sx={{ fontFamily: 'monospace' }}>{s}</Typography>
       ))}
       {items.length > max && (
-        <Typography variant="caption" color="text.secondary">+{items.length - max} more</Typography>
+        <Typography variant="caption" color="text.secondary">
+          {t('results.moreItems', { count: items.length - max })}
+        </Typography>
       )}
     </Box>
   )
 }
 
 const CompareResultDialog = ({ open, onClose, result, error, loading }: CompareResultDialogProps) => {
+  const { t } = useTranslation()
+  const { formatDateTime } = useLocaleFormatters()
   const [tab, setTab] = useState(0)
 
   if (loading) {
     return (
       <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
-        <DialogTitle>Scan comparison</DialogTitle>
+        <DialogTitle>{t('history.compareScans')}</DialogTitle>
         <DialogContent>
           <Box sx={{ py: 6, display: 'flex', justifyContent: 'center' }}>
-            <Typography color="text.secondary">Loading...</Typography>
+            <Typography color="text.secondary">{t('common.loading')}</Typography>
           </Box>
         </DialogContent>
       </Dialog>
@@ -101,7 +100,7 @@ const CompareResultDialog = ({ open, onClose, result, error, loading }: CompareR
   if (error) {
     return (
       <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-        <DialogTitle>Scan comparison</DialogTitle>
+        <DialogTitle>{t('history.compareScans')}</DialogTitle>
         <DialogContent>
           <Typography color="error">{error}</Typography>
         </DialogContent>
@@ -112,9 +111,9 @@ const CompareResultDialog = ({ open, onClose, result, error, loading }: CompareR
   if (!result) {
     return (
       <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-        <DialogTitle>Scan comparison</DialogTitle>
+        <DialogTitle>{t('history.compareScans')}</DialogTitle>
         <DialogContent>
-          <Typography color="text.secondary">Select two different scans and click Compare.</Typography>
+          <Typography color="text.secondary">{t('history.compareScans')}</Typography>
         </DialogContent>
       </Dialog>
     )
@@ -124,72 +123,78 @@ const CompareResultDialog = ({ open, onClose, result, error, loading }: CompareR
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
-      <DialogTitle>Scan comparison: {scan_1.domain}</DialogTitle>
+      <DialogTitle>{t('history.compareScans')}: {scan_1.domain}</DialogTitle>
       <DialogContent>
         <Box sx={{ pt: 1 }}>
           <Grid container spacing={2} sx={{ mb: 2 }}>
             <Grid item xs={6}>
               <Paper variant="outlined" sx={{ p: 2 }}>
-                <Typography variant="subtitle2" color="primary">Scan 1</Typography>
-                <Typography variant="body2">{formatDate(scan_1.date)}</Typography>
+                <Typography variant="subtitle2" color="primary">{t('history.scanOne')}</Typography>
+                <Typography variant="body2">{formatDateTime(scan_1.date)}</Typography>
                 <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  <Chip size="small" label={`Risk: ${scan_1.risk_score ?? summary.risk_1}`} />
-                  <Chip size="small" label={`Subdomains: ${scan_1.subdomains_count ?? subdomains.count_1}`} />
-                  <Chip size="small" label={`Alerts: ${scan_1.alerts_count ?? summary.alerts_1}`} />
+                  <Chip size="small" label={`${t('common.risk')}: ${scan_1.risk_score ?? summary.risk_1}`} />
+                  <Chip size="small" label={`${t('common.subdomains')}: ${scan_1.subdomains_count ?? subdomains.count_1}`} />
+                  <Chip size="small" label={`${t('common.alerts')}: ${scan_1.alerts_count ?? summary.alerts_1}`} />
                 </Box>
               </Paper>
             </Grid>
             <Grid item xs={6}>
               <Paper variant="outlined" sx={{ p: 2 }}>
-                <Typography variant="subtitle2" color="secondary">Scan 2</Typography>
-                <Typography variant="body2">{formatDate(scan_2.date)}</Typography>
+                <Typography variant="subtitle2" color="secondary">{t('history.scanTwo')}</Typography>
+                <Typography variant="body2">{formatDateTime(scan_2.date)}</Typography>
                 <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  <Chip size="small" label={`Risk: ${scan_2.risk_score ?? summary.risk_2}`} />
-                  <Chip size="small" label={`Subdomains: ${scan_2.subdomains_count ?? subdomains.count_2}`} />
-                  <Chip size="small" label={`Alerts: ${scan_2.alerts_count ?? summary.alerts_2}`} />
+                  <Chip size="small" label={`${t('common.risk')}: ${scan_2.risk_score ?? summary.risk_2}`} />
+                  <Chip size="small" label={`${t('common.subdomains')}: ${scan_2.subdomains_count ?? subdomains.count_2}`} />
+                  <Chip size="small" label={`${t('common.alerts')}: ${scan_2.alerts_count ?? summary.alerts_2}`} />
                 </Box>
               </Paper>
             </Grid>
           </Grid>
 
           <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
-            <Typography variant="subtitle2" gutterBottom>Summary of changes</Typography>
+            <Typography variant="subtitle2" gutterBottom>{t('notifications.subtitle')}</Typography>
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
               <Chip
                 size="small"
                 icon={summary.risk_delta !== undefined && summary.risk_delta > 0 ? <TrendingUpIcon /> : summary.risk_delta !== undefined && summary.risk_delta < 0 ? <TrendingDownIcon /> : undefined}
                 color={summary.risk_delta !== undefined && summary.risk_delta > 0 ? 'error' : summary.risk_delta !== undefined && summary.risk_delta < 0 ? 'success' : 'default'}
-                label={`Risk: ${summary.risk_1} → ${summary.risk_2}${summary.risk_delta !== undefined ? ` (${summary.risk_delta >= 0 ? '+' : ''}${summary.risk_delta})` : ''}`}
+                label={`${t('common.risk')}: ${summary.risk_1} → ${summary.risk_2}${summary.risk_delta !== undefined ? ` (${summary.risk_delta >= 0 ? '+' : ''}${summary.risk_delta})` : ''}`}
               />
-              <Chip size="small" label={`Subdomains: +${summary.subdomains_added ?? 0} new, −${summary.subdomains_removed ?? 0} removed`} />
-              <Chip size="small" label={`IPs: +${summary.ips_added ?? 0} new, −${summary.ips_removed ?? 0} removed`} />
-              <Chip size="small" label={`Alerts: ${summary.alerts_1} → ${summary.alerts_2}`} />
+              <Chip size="small" label={`${t('common.subdomains')}: +${summary.subdomains_added ?? 0}, −${summary.subdomains_removed ?? 0}`} />
+              <Chip
+                size="small"
+                label={t('history.ipsDelta', {
+                  added: summary.ips_added ?? 0,
+                  removed: summary.ips_removed ?? 0,
+                })}
+              />
+              <Chip size="small" label={`${t('common.alerts')}: ${summary.alerts_1} → ${summary.alerts_2}`} />
             </Box>
           </Paper>
 
           <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-            <Tab label="Subdomains" />
-            <Tab label="IPs" />
-            <Tab label="DNS" />
-            <Tab label="SSL" />
-            <Tab label="Ports" />
-            <Tab label="Tech" />
-            <Tab label="Alerts" />
-            <Tab label="WHOIS" />
+            <Tab label={t('common.subdomains')} />
+            <Tab label={t('results.ipAddresses')} />
+            <Tab label={t('history.compareTabDns')} />
+            <Tab label={t('history.compareTabSsl')} />
+            <Tab label={t('scan.tabs.ports')} />
+            <Tab label={t('results.technologies')} />
+            <Tab label={t('common.alerts')} />
+            <Tab label={t('history.compareTabWhois')} />
           </Tabs>
 
           {tab === 0 && (
             <Grid container spacing={2}>
               <Grid item xs={4}>
-                <Typography variant="body2" color="primary" gutterBottom>Only in Scan 1 ({subdomains.only_in_1.length})</Typography>
+                <Typography variant="body2" color="primary" gutterBottom>{t('history.onlyInScan', { scan: 1, count: subdomains.only_in_1.length })}</Typography>
                 <ListBlock items={subdomains.only_in_1} />
               </Grid>
               <Grid item xs={4}>
-                <Typography variant="body2" color="secondary" gutterBottom>Only in Scan 2 ({subdomains.only_in_2.length})</Typography>
+                <Typography variant="body2" color="secondary" gutterBottom>{t('history.onlyInScan', { scan: 2, count: subdomains.only_in_2.length })}</Typography>
                 <ListBlock items={subdomains.only_in_2} />
               </Grid>
               <Grid item xs={4}>
-                <Typography variant="body2" color="text.secondary" gutterBottom>In both ({subdomains.in_both.length})</Typography>
+                <Typography variant="body2" color="text.secondary" gutterBottom>{t('history.inBoth', { count: subdomains.in_both.length })}</Typography>
                 <ListBlock items={subdomains.in_both} />
               </Grid>
             </Grid>
@@ -198,15 +203,15 @@ const CompareResultDialog = ({ open, onClose, result, error, loading }: CompareR
           {tab === 1 && (
             <Grid container spacing={2}>
               <Grid item xs={4}>
-                <Typography variant="body2" color="primary" gutterBottom>Only in Scan 1 ({ips.only_in_1.length})</Typography>
+                <Typography variant="body2" color="primary" gutterBottom>{t('history.onlyInScan', { scan: 1, count: ips.only_in_1.length })}</Typography>
                 <ListBlock items={ips.only_in_1} />
               </Grid>
               <Grid item xs={4}>
-                <Typography variant="body2" color="secondary" gutterBottom>Only in Scan 2 ({ips.only_in_2.length})</Typography>
+                <Typography variant="body2" color="secondary" gutterBottom>{t('history.onlyInScan', { scan: 2, count: ips.only_in_2.length })}</Typography>
                 <ListBlock items={ips.only_in_2} />
               </Grid>
               <Grid item xs={4}>
-                <Typography variant="body2" color="text.secondary" gutterBottom>In both ({ips.in_both.length})</Typography>
+                <Typography variant="body2" color="text.secondary" gutterBottom>{t('history.inBoth', { count: ips.in_both.length })}</Typography>
                 <ListBlock items={ips.in_both} />
               </Grid>
             </Grid>
@@ -223,15 +228,15 @@ const CompareResultDialog = ({ open, onClose, result, error, loading }: CompareR
                     <AccordionDetails>
                       <Grid container spacing={2}>
                         <Grid item xs={4}>
-                          <Typography variant="caption" color="primary">Only in Scan 1</Typography>
+                          <Typography variant="caption" color="primary">{t('history.onlyInScanShort', { scan: 1 })}</Typography>
                           <ListBlock items={diff.only_in_1} />
                         </Grid>
                         <Grid item xs={4}>
-                          <Typography variant="caption" color="secondary">Only in Scan 2</Typography>
+                          <Typography variant="caption" color="secondary">{t('history.onlyInScanShort', { scan: 2 })}</Typography>
                           <ListBlock items={diff.only_in_2} />
                         </Grid>
                         <Grid item xs={4}>
-                          <Typography variant="caption" color="text.secondary">In both</Typography>
+                          <Typography variant="caption" color="text.secondary">{t('history.inBothShort')}</Typography>
                           <ListBlock items={diff.in_both} />
                         </Grid>
                       </Grid>
@@ -239,7 +244,7 @@ const CompareResultDialog = ({ open, onClose, result, error, loading }: CompareR
                   </Accordion>
                 ))
               ) : (
-                <Typography color="text.secondary">No DNS changes</Typography>
+                <Typography color="text.secondary">{t('history.noDnsChanges')}</Typography>
               )}
             </Box>
           )}
@@ -248,39 +253,39 @@ const CompareResultDialog = ({ open, onClose, result, error, loading }: CompareR
             <Box>
               <Grid container spacing={2} sx={{ mb: 2 }}>
                 <Grid item xs={4}>
-                  <Typography variant="body2" color="primary" gutterBottom>Hosts only in Scan 1 ({ssl.hosts_only_in_1.length})</Typography>
+                  <Typography variant="body2" color="primary" gutterBottom>{t('history.hostsOnlyInScan', { scan: 1, count: ssl.hosts_only_in_1.length })}</Typography>
                   <ListBlock items={ssl.hosts_only_in_1} />
                 </Grid>
                 <Grid item xs={4}>
-                  <Typography variant="body2" color="secondary" gutterBottom>Hosts only in Scan 2 ({ssl.hosts_only_in_2.length})</Typography>
+                  <Typography variant="body2" color="secondary" gutterBottom>{t('history.hostsOnlyInScan', { scan: 2, count: ssl.hosts_only_in_2.length })}</Typography>
                   <ListBlock items={ssl.hosts_only_in_2} />
                 </Grid>
                 <Grid item xs={4}>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>Hosts in both ({ssl.hosts_in_both.length})</Typography>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>{t('history.hostsInBoth', { count: ssl.hosts_in_both.length })}</Typography>
                   <ListBlock items={ssl.hosts_in_both} />
                 </Grid>
               </Grid>
               {ssl.expired_changes && ssl.expired_changes.length > 0 && (
                 <Accordion>
                   <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                    <Typography variant="body2">Certificate expiry changes ({ssl.expired_changes.length})</Typography>
+                    <Typography variant="body2">{t('history.certificateExpiryChanges', { count: ssl.expired_changes.length })}</Typography>
                   </AccordionSummary>
                   <AccordionDetails>
                     <TableContainer>
                       <Table size="small">
                         <TableHead>
                           <TableRow>
-                            <TableCell>Host</TableCell>
-                            <TableCell>Scan 1</TableCell>
-                            <TableCell>Scan 2</TableCell>
+                            <TableCell>{t('results.host')}</TableCell>
+                            <TableCell>{t('history.scanOne')}</TableCell>
+                            <TableCell>{t('history.scanTwo')}</TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
                           {ssl.expired_changes.map((c, i) => (
                             <TableRow key={i}>
                               <TableCell sx={{ fontFamily: 'monospace' }}>{c.host}</TableCell>
-                              <TableCell>{c.was_expired_1 ? 'Expired' : 'Valid'}</TableCell>
-                              <TableCell>{c.is_expired_2 ? 'Expired' : 'Valid'}</TableCell>
+                              <TableCell>{c.was_expired_1 ? t('results.expired') : t('results.valid')}</TableCell>
+                              <TableCell>{c.is_expired_2 ? t('results.expired') : t('results.valid')}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -295,7 +300,11 @@ const CompareResultDialog = ({ open, onClose, result, error, loading }: CompareR
           {tab === 4 && ports && (
             <Box>
               <Typography variant="body2" gutterBottom>
-                New ports: {ports.new_ports_count} | Closed ports: {ports.closed_ports_count} | IPs with changes: {ports.ips_with_changes}
+                {t('history.portChangesSummary', {
+                  newPorts: ports.new_ports_count,
+                  closedPorts: ports.closed_ports_count,
+                  ips: ports.ips_with_changes,
+                })}
               </Typography>
               {ports.by_ip && Object.keys(ports.by_ip).length > 0 ? (
                 Object.entries(ports.by_ip).map(([ip, diff]) => (
@@ -308,15 +317,15 @@ const CompareResultDialog = ({ open, onClose, result, error, loading }: CompareR
                     <AccordionDetails>
                       <Grid container spacing={2}>
                         <Grid item xs={4}>
-                          <Typography variant="caption" color="error">Closed (Scan 1 only)</Typography>
+                          <Typography variant="caption" color="error">{t('history.closedScanOneOnly')}</Typography>
                           <ListBlock items={diff.only_in_1} />
                         </Grid>
                         <Grid item xs={4}>
-                          <Typography variant="caption" color="success.main">New (Scan 2 only)</Typography>
+                          <Typography variant="caption" color="success.main">{t('history.newScanTwoOnly')}</Typography>
                           <ListBlock items={diff.only_in_2} />
                         </Grid>
                         <Grid item xs={4}>
-                          <Typography variant="caption" color="text.secondary">Unchanged</Typography>
+                          <Typography variant="caption" color="text.secondary">{t('history.unchanged')}</Typography>
                           <ListBlock items={diff.in_both} />
                         </Grid>
                       </Grid>
@@ -324,7 +333,7 @@ const CompareResultDialog = ({ open, onClose, result, error, loading }: CompareR
                   </Accordion>
                 ))
               ) : (
-                <Typography color="text.secondary">No port changes</Typography>
+                <Typography color="text.secondary">{t('history.noPortChanges')}</Typography>
               )}
             </Box>
           )}
@@ -332,27 +341,27 @@ const CompareResultDialog = ({ open, onClose, result, error, loading }: CompareR
           {tab === 5 && tech_stack && (
             <Grid container spacing={2}>
               <Grid item xs={4}>
-                <Typography variant="body2" color="primary" gutterBottom>Removed ({tech_stack.only_in_1.length})</Typography>
+                <Typography variant="body2" color="primary" gutterBottom>{t('history.removed', { count: tech_stack.only_in_1.length })}</Typography>
                 <ListBlock items={tech_stack.only_in_1} />
               </Grid>
               <Grid item xs={4}>
-                <Typography variant="body2" color="secondary" gutterBottom>Added ({tech_stack.only_in_2.length})</Typography>
+                <Typography variant="body2" color="secondary" gutterBottom>{t('history.added', { count: tech_stack.only_in_2.length })}</Typography>
                 <ListBlock items={tech_stack.only_in_2} />
               </Grid>
               <Grid item xs={4}>
-                <Typography variant="body2" color="text.secondary" gutterBottom>Unchanged ({tech_stack.in_both.length})</Typography>
+                <Typography variant="body2" color="text.secondary" gutterBottom>{t('history.unchangedWithCount', { count: tech_stack.in_both.length })}</Typography>
                 <ListBlock items={tech_stack.in_both} />
               </Grid>
               {tech_stack.value_changes && tech_stack.value_changes.length > 0 && (
                 <Grid item xs={12}>
-                  <Typography variant="body2" gutterBottom sx={{ mt: 2 }}>Value changes</Typography>
+                  <Typography variant="body2" gutterBottom sx={{ mt: 2 }}>{t('history.valueChanges')}</Typography>
                   <TableContainer>
                     <Table size="small">
                       <TableHead>
                         <TableRow>
-                          <TableCell>Technology</TableCell>
-                          <TableCell>Scan 1</TableCell>
-                          <TableCell>Scan 2</TableCell>
+                          <TableCell>{t('investigations.types.technology')}</TableCell>
+                          <TableCell>{t('history.scanOne')}</TableCell>
+                          <TableCell>{t('history.scanTwo')}</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -374,7 +383,7 @@ const CompareResultDialog = ({ open, onClose, result, error, loading }: CompareR
           {tab === 6 && alerts && (
             <Grid container spacing={2}>
               <Grid item xs={6}>
-                <Typography variant="body2" color="primary" gutterBottom>Resolved (only in Scan 1) ({alerts.only_in_1.length})</Typography>
+                <Typography variant="body2" color="primary" gutterBottom>{t('history.resolvedOnlyInScan', { scan: 1, count: alerts.only_in_1.length })}</Typography>
                 <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
                   {alerts.only_in_1.map((a, i) => (
                     <Paper key={i} variant="outlined" sx={{ p: 1, mb: 0.5 }}>
@@ -386,7 +395,7 @@ const CompareResultDialog = ({ open, onClose, result, error, loading }: CompareR
                 </Box>
               </Grid>
               <Grid item xs={6}>
-                <Typography variant="body2" color="secondary" gutterBottom>New (only in Scan 2) ({alerts.only_in_2.length})</Typography>
+                <Typography variant="body2" color="secondary" gutterBottom>{t('history.newOnlyInScan', { scan: 2, count: alerts.only_in_2.length })}</Typography>
                 <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
                   {alerts.only_in_2.map((a, i) => (
                     <Paper key={i} variant="outlined" sx={{ p: 1, mb: 0.5 }}>
@@ -400,56 +409,56 @@ const CompareResultDialog = ({ open, onClose, result, error, loading }: CompareR
             </Grid>
           )}
 
-          {tab === 7 && whois && Object.keys(whois).length > 0 && (
+          {tab === 7 && !!whois && Object.keys(whois).length > 0 && (
             <Box>
-              {whois.registrar && typeof whois.registrar === 'object' && 'changed' in whois.registrar && (
+              {Boolean(whois.registrar && typeof whois.registrar === 'object' && 'changed' in whois.registrar) && (
                 <Accordion defaultExpanded>
-                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>Registrar</AccordionSummary>
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>{t('results.registrar')}</AccordionSummary>
                   <AccordionDetails>
                     <Table size="small">
                       <TableBody>
-                        <TableRow><TableCell>Scan 1</TableCell><TableCell>{String((whois.registrar as { value_1?: unknown }).value_1 ?? '-')}</TableCell></TableRow>
-                        <TableRow><TableCell>Scan 2</TableCell><TableCell>{String((whois.registrar as { value_2?: unknown }).value_2 ?? '-')}</TableCell></TableRow>
-                        <TableRow><TableCell>Changed</TableCell><TableCell>{(whois.registrar as { changed?: boolean }).changed ? 'Yes' : 'No'}</TableCell></TableRow>
+                        <TableRow><TableCell>{t('history.scanOne')}</TableCell><TableCell>{String((whois.registrar as { value_1?: unknown }).value_1 ?? '-')}</TableCell></TableRow>
+                        <TableRow><TableCell>{t('history.scanTwo')}</TableCell><TableCell>{String((whois.registrar as { value_2?: unknown }).value_2 ?? '-')}</TableCell></TableRow>
+                        <TableRow><TableCell>{t('history.changed')}</TableCell><TableCell>{(whois.registrar as { changed?: boolean }).changed ? t('common.yes') : t('common.no')}</TableCell></TableRow>
                       </TableBody>
                     </Table>
                   </AccordionDetails>
                 </Accordion>
               )}
-              {whois.creation_date && typeof whois.creation_date === 'object' && (
+              {Boolean(whois.creation_date && typeof whois.creation_date === 'object') && (
                 <Accordion>
-                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>Creation date</AccordionSummary>
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>{t('history.creationDate')}</AccordionSummary>
                   <AccordionDetails>
-                    <Typography variant="body2">Scan 1: {String((whois.creation_date as { value_1?: unknown }).value_1 ?? '-')}</Typography>
-                    <Typography variant="body2">Scan 2: {String((whois.creation_date as { value_2?: unknown }).value_2 ?? '-')}</Typography>
+                    <Typography variant="body2">{t('history.scanOne')}: {String((whois.creation_date as { value_1?: unknown }).value_1 ?? '-')}</Typography>
+                    <Typography variant="body2">{t('history.scanTwo')}: {String((whois.creation_date as { value_2?: unknown }).value_2 ?? '-')}</Typography>
                   </AccordionDetails>
                 </Accordion>
               )}
-              {whois.expiration_date && typeof whois.expiration_date === 'object' && (
+              {Boolean(whois.expiration_date && typeof whois.expiration_date === 'object') && (
                 <Accordion>
-                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>Expiration date</AccordionSummary>
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>{t('history.expirationDate')}</AccordionSummary>
                   <AccordionDetails>
-                    <Typography variant="body2">Scan 1: {String((whois.expiration_date as { value_1?: unknown }).value_1 ?? '-')}</Typography>
-                    <Typography variant="body2">Scan 2: {String((whois.expiration_date as { value_2?: unknown }).value_2 ?? '-')}</Typography>
+                    <Typography variant="body2">{t('history.scanOne')}: {String((whois.expiration_date as { value_1?: unknown }).value_1 ?? '-')}</Typography>
+                    <Typography variant="body2">{t('history.scanTwo')}: {String((whois.expiration_date as { value_2?: unknown }).value_2 ?? '-')}</Typography>
                   </AccordionDetails>
                 </Accordion>
               )}
-              {whois.name_servers && typeof whois.name_servers === 'object' && 'only_in_1' in whois.name_servers && (
+              {Boolean(whois.name_servers && typeof whois.name_servers === 'object' && 'only_in_1' in whois.name_servers) && (
                 <Accordion>
-                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>Name servers</AccordionSummary>
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>{t('results.nameServers')}</AccordionSummary>
                   <AccordionDetails>
                     <Grid container spacing={2}>
                       <Grid item xs={4}>
-                        <Typography variant="caption" color="primary">Removed</Typography>
+                        <Typography variant="caption" color="primary">{t('history.removedShort')}</Typography>
                         <ListBlock items={(whois.name_servers as { only_in_1: string[] }).only_in_1} />
                       </Grid>
                       <Grid item xs={4}>
-                        <Typography variant="caption" color="secondary">Added</Typography>
-                        <ListBlock items={(whois.name_servers as { only_in_2: string[] }).only_in_2} />
+                        <Typography variant="caption" color="secondary">{t('history.addedShort')}</Typography>
+                        <ListBlock items={(whois.name_servers as unknown as { only_in_2: string[] }).only_in_2} />
                       </Grid>
                       <Grid item xs={4}>
-                        <Typography variant="caption" color="text.secondary">Unchanged</Typography>
-                        <ListBlock items={(whois.name_servers as { in_both: string[] }).in_both} />
+                        <Typography variant="caption" color="text.secondary">{t('history.unchanged')}</Typography>
+                        <ListBlock items={(whois.name_servers as unknown as { in_both: string[] }).in_both} />
                       </Grid>
                     </Grid>
                   </AccordionDetails>

@@ -22,11 +22,15 @@ import SearchIcon from '@mui/icons-material/Search'
 import DeleteIcon from '@mui/icons-material/Delete'
 import EditIcon from '@mui/icons-material/Edit'
 import { Link, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { investigationsApi } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import { Investigation } from '../types'
+import { useLocaleFormatters } from '../i18n/format'
 
 const InvestigationsPage = () => {
+  const { t } = useTranslation()
+  const { formatDateTime } = useLocaleFormatters()
   const { isAuthenticated, isLoading: authLoading } = useAuth()
   const navigate = useNavigate()
   const [investigations, setInvestigations] = useState<Investigation[]>([])
@@ -46,32 +50,32 @@ const InvestigationsPage = () => {
         const data = await investigationsApi.list()
         setInvestigations(data.investigations || [])
       } catch (err) {
-        setError('Failed to load investigations. Is Neo4j running?')
+        setError(t('investigations.failedToLoad'))
         console.error(err)
       } finally {
         setLoading(false)
       }
     }
     load()
-  }, [authLoading, isAuthenticated, navigate])
+  }, [authLoading, isAuthenticated, navigate, t])
 
   const handleCreate = async () => {
     try {
-      const inv = await investigationsApi.create('New Investigation')
+      const inv = await investigationsApi.create(t('investigations.newInvestigation'))
       navigate(`/investigations/${inv.id}`)
     } catch (err) {
-      setError('Failed to create investigation')
+      setError(t('investigations.failedToCreate'))
       console.error(err)
     }
   }
 
   const handleDelete = async (invId: string) => {
-    if (!window.confirm('Delete this investigation?')) return
+    if (!window.confirm(t('investigations.deleteConfirm'))) return
     try {
       await investigationsApi.delete(invId)
       setInvestigations((prev) => prev.filter((i) => i.id !== invId))
     } catch (err) {
-      setError('Failed to delete investigation')
+      setError(t('investigations.failedToDelete'))
     }
   }
 
@@ -90,7 +94,7 @@ const InvestigationsPage = () => {
       setRenameId(null)
       setRenameValue('')
     } catch (err) {
-      setError('Failed to rename investigation')
+      setError(t('investigations.failedToRename'))
     }
   }
 
@@ -108,7 +112,7 @@ const InvestigationsPage = () => {
     <Container maxWidth="lg" sx={{ py: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" fontWeight={600}>
-          Investigations
+          {t('investigations.title')}
         </Typography>
         <Button
           variant="contained"
@@ -116,7 +120,7 @@ const InvestigationsPage = () => {
           onClick={handleCreate}
           sx={{ textTransform: 'none' }}
         >
-          New Investigation
+          {t('investigations.newInvestigation')}
         </Button>
       </Box>
 
@@ -135,10 +139,10 @@ const InvestigationsPage = () => {
           <CardContent>
             <SearchIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
             <Typography variant="h6" color="text.secondary" gutterBottom>
-              No investigations yet
+              {t('investigations.emptyTitle')}
             </Typography>
             <Typography color="text.secondary" sx={{ mb: 2 }}>
-              Create an investigation to explore entities and run enrichers interactively.
+              {t('investigations.emptyBody')}
             </Typography>
             <Button
               variant="contained"
@@ -146,7 +150,7 @@ const InvestigationsPage = () => {
               onClick={handleCreate}
               sx={{ textTransform: 'none' }}
             >
-              Create your first investigation
+              {t('investigations.createFirst')}
             </Button>
           </CardContent>
         </Card>
@@ -158,7 +162,7 @@ const InvestigationsPage = () => {
                 <CardContent>
                   <Typography variant="h6">{inv.name}</Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Updated {inv.updated_at ? new Date(inv.updated_at).toLocaleDateString() : '—'}
+                    {t('investigations.updated', { date: inv.updated_at ? formatDateTime(inv.updated_at, { dateStyle: 'medium' }) : '—' })}
                   </Typography>
                 </CardContent>
                 <CardActions>
@@ -168,7 +172,7 @@ const InvestigationsPage = () => {
                     size="small"
                     sx={{ textTransform: 'none' }}
                   >
-                    Open
+                    {t('common.open')}
                   </Button>
                   <IconButton size="small" onClick={() => openRename(inv)}>
                     <EditIcon fontSize="small" />
@@ -184,20 +188,20 @@ const InvestigationsPage = () => {
       )}
 
       <Dialog open={Boolean(renameId)} onClose={() => setRenameId(null)}>
-        <DialogTitle>Rename Investigation</DialogTitle>
+        <DialogTitle>{t('investigations.rename')}</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus
             margin="dense"
-            label="Name"
+            label={t('investigations.name')}
             fullWidth
             value={renameValue}
             onChange={(e) => setRenameValue(e.target.value)}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setRenameId(null)}>Cancel</Button>
-          <Button onClick={handleRename} variant="contained">Save</Button>
+          <Button onClick={() => setRenameId(null)}>{t('common.cancel')}</Button>
+          <Button onClick={handleRename} variant="contained">{t('common.save')}</Button>
         </DialogActions>
       </Dialog>
     </Container>

@@ -21,6 +21,7 @@ import {
 import SearchIcon from '@mui/icons-material/Search'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
+import { useTranslation } from 'react-i18next'
 import HelpTooltip from '../common/HelpTooltip'
 
 interface SubdomainsListProps {
@@ -28,7 +29,8 @@ interface SubdomainsListProps {
   targetDomain?: string
 }
 
-const SubdomainsList = ({ subdomains, targetDomain = '' }: SubdomainsListProps) => {
+const SubdomainsList = ({ subdomains }: SubdomainsListProps) => {
+  const { t } = useTranslation()
   const [searchQuery, setSearchQuery] = useState('')
   const [page, setPage] = useState(0)
   const [rowsPerPage, setRowsPerPage] = useState(25)
@@ -66,7 +68,7 @@ const SubdomainsList = ({ subdomains, targetDomain = '' }: SubdomainsListProps) 
     return (
       <Card>
         <CardContent>
-          <Typography color="text.secondary">No subdomains found</Typography>
+          <Typography color="text.secondary">{t('results.noSubdomains')}</Typography>
         </CardContent>
       </Card>
     )
@@ -80,18 +82,18 @@ const SubdomainsList = ({ subdomains, targetDomain = '' }: SubdomainsListProps) 
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <Typography variant="h6">
-                Discovered Subdomains
+                {t('results.discoveredSubdomains')}
               </Typography>
               <HelpTooltip topic="subdomains" />
-              <Chip label={`${subdomains.length} total`} color="primary" />
+              <Chip label={t('results.total', { count: subdomains.length })} color="primary" />
               {searchQuery && (
-                <Chip label={`${filteredSubdomains.length} filtered`} color="secondary" variant="outlined" />
+                <Chip label={t('results.filtered', { count: filteredSubdomains.length })} color="secondary" variant="outlined" />
               )}
             </Box>
             <Box sx={{ display: 'flex', gap: 1 }}>
-              <Tooltip title="Copy all subdomains">
+              <Tooltip title={t('results.copyAllSubdomains')}>
                 <Chip
-                  label="Copy All"
+                  label={t('results.copyAll')}
                   onClick={copyAllSubdomains}
                   icon={<ContentCopyIcon />}
                   clickable
@@ -104,7 +106,7 @@ const SubdomainsList = ({ subdomains, targetDomain = '' }: SubdomainsListProps) 
           <TextField
             fullWidth
             size="small"
-            placeholder="Search subdomains..."
+            placeholder={t('results.searchSubdomains')}
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value)
@@ -127,9 +129,9 @@ const SubdomainsList = ({ subdomains, targetDomain = '' }: SubdomainsListProps) 
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>#</TableCell>
-              <TableCell>Subdomain</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              <TableCell>{t('results.columnIndex')}</TableCell>
+              <TableCell>{t('results.subdomain')}</TableCell>
+              <TableCell align="right">{t('common.actions')}</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -147,7 +149,7 @@ const SubdomainsList = ({ subdomains, targetDomain = '' }: SubdomainsListProps) 
                   </Typography>
                 </TableCell>
                 <TableCell align="right">
-                  <Tooltip title="Copy">
+                  <Tooltip title={t('common.copy')}>
                     <IconButton
                       size="small"
                       onClick={() => copyToClipboard(subdomain)}
@@ -155,7 +157,7 @@ const SubdomainsList = ({ subdomains, targetDomain = '' }: SubdomainsListProps) 
                       <ContentCopyIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title="Open in new tab">
+                  <Tooltip title={t('results.openInNewTab')}>
                     <IconButton
                       size="small"
                       component="a"

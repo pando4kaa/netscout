@@ -1,130 +1,105 @@
 """
-Subdomain Finder Module
-
-This module provides functionality to discover subdomains using passive methods
-(Certificate Transparency logs).
+Subdomain Finder - passive subdomain discovery via Certificate Transparency (crt.sh).
 """
 
-import requests
 import json
-from typing import List, Set, Optional, Iterable
+import logging
 import time
+from typing import Iterable, List, Optional, Set
 
-from src.config.settings import HTTP_TIMEOUT, HTTP_RETRIES, USER_AGENT
+import requests
+
+from src.config.settings import HTTP_RETRIES, HTTP_TIMEOUT, USER_AGENT
 from src.utils.validators import is_valid_domain
+
+logger = logging.getLogger(__name__)
+
+_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+_MAX_BACKOFF_SECONDS = 8.0
 
 
 def _fetch_crtsh_json(url: str, timeout: int, retries: int) -> Optional[list]:
-    """
-    Fetch JSON from crt.sh with retries/backoff.
-    Returns parsed JSON list or None if failed.
-    """
+    """GET `url` and return parsed JSON. Retries with exponential backoff on transient errors."""
     headers = {
         "User-Agent": USER_AGENT,
         "Accept": "application/json,text/plain,*/*",
     }
-
     last_error: Optional[str] = None
 
     for attempt in range(1, retries + 1):
         try:
             resp = requests.get(url, headers=headers, timeout=timeout)
-
-            # Retry on transient errors / rate limiting
-            if resp.status_code in (429, 500, 502, 503, 504):
-                last_error = f"crt.sh HTTP {resp.status_code}"
-            elif resp.status_code != 200:
-                print(f"Warning: crt.sh returned status code {resp.status_code}")
-                return None
-            else:
+            if resp.status_code == 200:
                 try:
                     return resp.json()
                 except json.JSONDecodeError:
-                    # crt.sh sometimes returns HTML or invalid JSON
                     last_error = "Invalid JSON response from crt.sh"
-
+            elif resp.status_code in _RETRYABLE_STATUS:
+                last_error = f"crt.sh HTTP {resp.status_code}"
+            else:
+                logger.warning("crt.sh returned status %s for %s", resp.status_code, url)
+                return None
         except requests.Timeout:
             last_error = "crt.sh request timed out"
-        except requests.RequestException as e:
-            last_error = f"Error querying crt.sh: {e}"
+        except requests.RequestException as exc:
+            last_error = f"crt.sh request error: {exc}"
 
-        # Backoff before retrying
         if attempt < retries:
-            sleep_s = min(1.0 * (2 ** (attempt - 1)), 8.0)
-            time.sleep(sleep_s)
+            backoff = min(1.0 * (2 ** (attempt - 1)), _MAX_BACKOFF_SECONDS)
+            time.sleep(backoff)
 
     if last_error:
-        print(f"Warning: {last_error}")
+        logger.warning("crt.sh failed after %d attempts: %s", retries, last_error)
     return None
 
 
 def _extract_subdomains_from_crt_entries(domain: str, data: Iterable[dict]) -> Set[str]:
+    """Pull valid subdomains of `domain` out of crt.sh response rows."""
     subdomains: Set[str] = set()
     domain = domain.lower().strip()
     suffix = f".{domain}"
 
     for entry in data:
         name_value = entry.get("name_value", "")
-
-        # Some entries contain multiple domains separated by newlines
-        for name in str(name_value).replace("\n", ",").split(","):
-            name = name.strip().lower()
-            if not name:
+        # crt.sh sometimes puts multiple SANs in one row separated by newlines.
+        for raw_name in str(name_value).replace("\n", ",").split(","):
+            cleaned = raw_name.strip().lower().rstrip(".")
+            if not cleaned:
                 continue
-
-            # Remove trailing dot if present
-            if name.endswith("."):
-                name = name[:-1]
-
-            # Filter out wildcards
-            if name.startswith("*."):
-                name = name[2:]
-
-            # Drop obviously invalid entries (emails / descriptive strings)
-            if " " in name or "@" in name:
+            if cleaned.startswith("*."):
+                cleaned = cleaned[2:]
+            if " " in cleaned or "@" in cleaned:
                 continue
-
-            # Keep only real subdomains like foo.example.com (not example.com itself)
-            if not name.endswith(suffix):
+            if not cleaned.endswith(suffix):
                 continue
+            if is_valid_domain(cleaned):
+                subdomains.add(cleaned)
 
-            if is_valid_domain(name):
-                subdomains.add(name)
-
-    # Remove the base domain itself
-    subdomains.discard(domain.lower())
+    subdomains.discard(domain)
     return subdomains
 
 
 def find_subdomains_passive(domain: str) -> List[str]:
     """
-    Finds subdomains using Certificate Transparency logs (crt.sh).
-    
-    Args:
-        domain: Base domain to search for (e.g., 'example.com')
-    
-    Returns:
-        List of unique subdomains:
-        ['www.example.com', 'api.example.com', ...]
+    Discover subdomains of `domain` via Certificate Transparency logs (crt.sh).
+
+    Returns a sorted list. Returns an empty list on any failure (does not raise);
+    errors are logged at WARNING level.
     """
     try:
-        # crt.sh works more reliably for subdomains with the pattern %.domain
-        # NOTE: we URL-encode % as %25
+        # crt.sh returns more results when querying with the wildcard prefix `%.`
+        # (URL-encoded as `%25.`).
         urls = [
             f"https://crt.sh/?q=%25.{domain}&output=json",
             f"https://crt.sh/?q={domain}&output=json",
         ]
 
         subdomains: Set[str] = set()
-
         for url in urls:
             data = _fetch_crtsh_json(url, timeout=HTTP_TIMEOUT, retries=HTTP_RETRIES)
-            if not data:
-                continue
-            subdomains |= _extract_subdomains_from_crt_entries(domain, data)
-
-        return sorted(list(subdomains))
-    except Exception as e:
-        print(f"Warning: Unexpected error: {e}")
-
-    return []
+            if data:
+                subdomains |= _extract_subdomains_from_crt_entries(domain, data)
+        return sorted(subdomains)
+    except Exception as exc:
+        logger.warning("Unexpected error in find_subdomains_passive(%s): %s", domain, exc)
+        return []

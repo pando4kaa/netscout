@@ -7,14 +7,19 @@ import {
   Grid,
   Paper,
 } from '@mui/material'
+import { useTranslation } from 'react-i18next'
 import { WhoisInfo } from '../../types'
 import HelpTooltip from '../common/HelpTooltip'
+import { useLocaleFormatters } from '../../i18n/format'
 
 interface WhoisInfoPanelProps {
   whoisInfo: WhoisInfo
 }
 
 const WhoisInfoPanel = ({ whoisInfo }: WhoisInfoPanelProps) => {
+  const { t } = useTranslation()
+  const { formatDateTime } = useLocaleFormatters()
+
   if (whoisInfo.error) {
     return (
       <Card>
@@ -29,11 +34,7 @@ const WhoisInfoPanel = ({ whoisInfo }: WhoisInfoPanelProps) => {
     if (!dateStr) return 'N/A'
     try {
       const date = new Date(dateStr)
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      })
+      return formatDateTime(date, { year: 'numeric', month: 'long', day: 'numeric' })
     } catch {
       return dateStr
     }
@@ -53,6 +54,12 @@ const WhoisInfoPanel = ({ whoisInfo }: WhoisInfoPanelProps) => {
   }
 
   const daysUntilExpiry = calculateDaysUntilExpiry(whoisInfo.expiration_date)
+  const domainAgeYears = whoisInfo.creation_date
+    ? Math.floor(
+        (new Date().getTime() - new Date(whoisInfo.creation_date).getTime()) /
+          (1000 * 60 * 60 * 24 * 365)
+      )
+    : null
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -60,14 +67,14 @@ const WhoisInfoPanel = ({ whoisInfo }: WhoisInfoPanelProps) => {
       <Card>
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-            <Typography variant="h6">Registration Information</Typography>
+            <Typography variant="h6">{t('results.registrationInfo')}</Typography>
             <HelpTooltip topic="whois" />
           </Box>
           <Grid container spacing={3}>
             <Grid item xs={12} md={6}>
               <Paper variant="outlined" sx={{ p: 2 }}>
                 <Typography variant="subtitle2" color="text.secondary">
-                  Registrar
+                  {t('results.registrar')}
                 </Typography>
                 <Typography variant="body1" sx={{ mt: 0.5 }}>
                   {whoisInfo.registrar || 'N/A'}
@@ -77,7 +84,7 @@ const WhoisInfoPanel = ({ whoisInfo }: WhoisInfoPanelProps) => {
             <Grid item xs={12} md={6}>
               <Paper variant="outlined" sx={{ p: 2 }}>
                 <Typography variant="subtitle2" color="text.secondary">
-                  Status
+                  {t('results.status')}
                 </Typography>
                 <Typography variant="body1" sx={{ mt: 0.5 }}>
                   {whoisInfo.status || 'N/A'}
@@ -92,13 +99,13 @@ const WhoisInfoPanel = ({ whoisInfo }: WhoisInfoPanelProps) => {
       <Card>
         <CardContent>
           <Typography variant="h6" gutterBottom>
-            Important Dates
+            {t('results.importantDates')}
           </Typography>
           <Grid container spacing={3}>
             <Grid item xs={12} md={4}>
               <Paper variant="outlined" sx={{ p: 2, bgcolor: 'success.light', color: 'success.contrastText' }}>
                 <Typography variant="subtitle2" sx={{ opacity: 0.9 }}>
-                  Created
+                  {t('results.created')}
                 </Typography>
                 <Typography variant="h6" sx={{ mt: 0.5 }}>
                   {formatDate(whoisInfo.creation_date)}
@@ -115,14 +122,14 @@ const WhoisInfoPanel = ({ whoisInfo }: WhoisInfoPanelProps) => {
                 }}
               >
                 <Typography variant="subtitle2" sx={{ opacity: 0.9 }}>
-                  Expires
+                  {t('results.expires')}
                 </Typography>
                 <Typography variant="h6" sx={{ mt: 0.5 }}>
                   {formatDate(whoisInfo.expiration_date)}
                 </Typography>
                 {daysUntilExpiry !== null && (
                   <Typography variant="caption" sx={{ opacity: 0.9 }}>
-                    {daysUntilExpiry > 0 ? `${daysUntilExpiry} days left` : 'Expired!'}
+                    {daysUntilExpiry > 0 ? t('results.daysLeft', { count: daysUntilExpiry }) : t('results.expired')}
                   </Typography>
                 )}
               </Paper>
@@ -130,15 +137,10 @@ const WhoisInfoPanel = ({ whoisInfo }: WhoisInfoPanelProps) => {
             <Grid item xs={12} md={4}>
               <Paper variant="outlined" sx={{ p: 2, bgcolor: 'info.light', color: 'info.contrastText' }}>
                 <Typography variant="subtitle2" sx={{ opacity: 0.9 }}>
-                  Domain Age
+                  {t('results.domainAge')}
                 </Typography>
                 <Typography variant="h6" sx={{ mt: 0.5 }}>
-                  {whoisInfo.creation_date
-                    ? `${Math.floor(
-                        (new Date().getTime() - new Date(whoisInfo.creation_date).getTime()) /
-                          (1000 * 60 * 60 * 24 * 365)
-                      )} years`
-                    : 'N/A'}
+                  {domainAgeYears !== null ? t('results.years', { count: domainAgeYears }) : 'N/A'}
                 </Typography>
               </Paper>
             </Grid>
@@ -150,7 +152,7 @@ const WhoisInfoPanel = ({ whoisInfo }: WhoisInfoPanelProps) => {
       <Card>
         <CardContent>
           <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            Name Servers
+            {t('results.nameServers')}
             <Chip label={whoisInfo.name_servers?.length || 0} size="small" color="primary" />
           </Typography>
           {whoisInfo.name_servers && whoisInfo.name_servers.length > 0 ? (
@@ -160,7 +162,7 @@ const WhoisInfoPanel = ({ whoisInfo }: WhoisInfoPanelProps) => {
               ))}
             </Box>
           ) : (
-            <Typography color="text.secondary">No name servers found</Typography>
+            <Typography color="text.secondary">{t('results.noNameServers')}</Typography>
           )}
         </CardContent>
       </Card>
@@ -169,7 +171,7 @@ const WhoisInfoPanel = ({ whoisInfo }: WhoisInfoPanelProps) => {
       <Card>
         <CardContent>
           <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            Contact Emails
+            {t('results.contactEmails')}
             <Chip label={whoisInfo.emails?.length || 0} size="small" color="secondary" />
           </Typography>
           {whoisInfo.emails && whoisInfo.emails.length > 0 ? (
@@ -187,7 +189,7 @@ const WhoisInfoPanel = ({ whoisInfo }: WhoisInfoPanelProps) => {
               ))}
             </Box>
           ) : (
-            <Typography color="text.secondary">No emails found (possibly hidden by privacy protection)</Typography>
+            <Typography color="text.secondary">{t('results.noEmails')}</Typography>
           )}
         </CardContent>
       </Card>

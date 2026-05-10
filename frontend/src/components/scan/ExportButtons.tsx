@@ -45,7 +45,6 @@ const ExportButtons = ({ scanResults }: ExportButtonsProps) => {
 
   const exportPdf = () => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-    const pageW = doc.internal.pageSize.getWidth()
     let y = 15
     const lineH = 7
     const margin = 15

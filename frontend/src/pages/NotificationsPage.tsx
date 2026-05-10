@@ -14,11 +14,13 @@ import {
 } from '@mui/material'
 import SearchIcon from '@mui/icons-material/Search'
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { authApi, notificationsApi, type Notification } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import NotificationDetailDialog from '../components/notifications/NotificationDetailDialog'
+import { useLocaleFormatters } from '../i18n/format'
 
 const severityColors: Record<string, 'default' | 'warning' | 'error'> = {
   info: 'default',
@@ -26,16 +28,9 @@ const severityColors: Record<string, 'default' | 'warning' | 'error'> = {
   critical: 'error',
 }
 
-function formatDate(iso: string | null | undefined): string {
-  if (!iso) return '-'
-  try {
-    return new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
-  } catch {
-    return String(iso)
-  }
-}
-
 const NotificationsPage = () => {
+  const { t } = useTranslation()
+  const { formatDateTime } = useLocaleFormatters()
   const [searchParams, setSearchParams] = useSearchParams()
   const { isAuthenticated, user, updateUser } = useAuth()
   const [notifications, setNotifications] = useState<Notification[]>([])
@@ -47,7 +42,7 @@ const NotificationsPage = () => {
   const [selected, setSelected] = useState<Notification | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -62,16 +57,16 @@ const NotificationsPage = () => {
     } catch (e: unknown) {
       const msg = e && typeof e === 'object' && 'response' in e
         ? (e as { response?: { data?: { detail?: string } } }).response?.data?.detail
-        : e instanceof Error ? e.message : 'Failed to load'
-      setError(typeof msg === 'string' ? msg : 'Failed to load')
+        : e instanceof Error ? e.message : t('errors.failedToLoad')
+      setError(typeof msg === 'string' ? msg : t('errors.failedToLoad'))
     } finally {
       setLoading(false)
     }
-  }
+  }, [domainFilter, unreadOnly, t])
 
   useEffect(() => {
     if (isAuthenticated) fetchNotifications()
-  }, [isAuthenticated, domainFilter, unreadOnly])
+  }, [isAuthenticated, fetchNotifications])
 
   // Handle unsubscribe from email link (?unsubscribe=1)
   const [unsubscribed, setUnsubscribed] = useState(false)
@@ -118,10 +113,10 @@ const NotificationsPage = () => {
     return (
       <Box sx={{ textAlign: 'center', py: 6 }}>
         <Typography variant="h6" gutterBottom>
-          Sign in to view notifications
+          {t('notifications.signInTitle')}
         </Typography>
         <Button component={Link} to="/login" variant="contained">
-          Sign in
+          {t('navigation.signIn')}
         </Button>
       </Box>
     )
@@ -129,19 +124,40 @@ const NotificationsPage = () => {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-        <NotificationsActiveIcon sx={{ fontSize: 36, color: 'primary.main' }} />
-        <Box sx={{ flex: 1 }}>
-          <Typography variant="h4" fontWeight={600}>
-            Notifications
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Domain changes after comparison with previous scan
-          </Typography>
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          alignItems: { xs: 'stretch', sm: 'flex-start' },
+          gap: 2,
+          mb: 3,
+        }}
+      >
+        <Box sx={{ display: 'flex', gap: 2, minWidth: 0, flex: { sm: 1 } }}>
+          <NotificationsActiveIcon
+            sx={{ fontSize: 36, color: 'primary.main', flexShrink: 0, mt: { xs: 0, sm: 0.25 } }}
+          />
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="h4" fontWeight={600} sx={{ typography: { xs: 'h5', sm: 'h4' } }}>
+              {t('notifications.title')}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {t('notifications.subtitle')}
+            </Typography>
+          </Box>
         </Box>
         {unreadCount > 0 && (
-          <Button variant="outlined" onClick={handleMarkAllRead} size="small">
-            Mark all as read ({unreadCount})
+          <Button
+            variant="outlined"
+            onClick={handleMarkAllRead}
+            size="small"
+            sx={{
+              alignSelf: { xs: 'stretch', sm: 'center' },
+              flexShrink: 0,
+              whiteSpace: { sm: 'nowrap' },
+            }}
+          >
+            {t('notifications.markAllRead', { count: unreadCount })}
           </Button>
         )}
       </Box>
@@ -149,7 +165,7 @@ const NotificationsPage = () => {
       <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
         <TextField
           size="small"
-          placeholder="Filter by domain"
+          placeholder={t('notifications.filterByDomain')}
           value={domainFilter}
           onChange={(e) => setDomainFilter(e.target.value)}
           InputProps={{
@@ -166,7 +182,7 @@ const NotificationsPage = () => {
           size="small"
           onClick={() => setUnreadOnly(!unreadOnly)}
         >
-          Unread only
+          {t('notifications.unreadOnly')}
         </Button>
       </Box>
 
@@ -177,7 +193,7 @@ const NotificationsPage = () => {
       )}
       {unsubscribed && (
         <Alert severity="info" sx={{ mb: 2 }} onClose={() => setUnsubscribed(false)}>
-          Email notifications disabled.
+          {t('notifications.disabled')}
         </Alert>
       )}
 
@@ -188,9 +204,9 @@ const NotificationsPage = () => {
           </Box>
         ) : notifications.length === 0 ? (
           <Box sx={{ py: 6, textAlign: 'center', color: 'text.secondary' }}>
-            <Typography>No notifications</Typography>
+            <Typography>{t('notifications.empty')}</Typography>
             <Typography variant="body2" sx={{ mt: 1 }}>
-              Notifications will appear after comparing a new scan with the previous one for the same domain
+              {t('notifications.emptyHint')}
             </Typography>
           </Box>
         ) : (
@@ -213,7 +229,7 @@ const NotificationsPage = () => {
                       </Typography>
                       <Chip label={n.type} size="small" color={severityColors[n.severity] || 'default'} />
                       {!n.read_at && (
-                        <Chip label="New" size="small" color="primary" sx={{ height: 20 }} />
+                        <Chip label={t('common.new')} size="small" color="primary" sx={{ height: 20 }} />
                       )}
                     </Box>
                   }
@@ -223,7 +239,7 @@ const NotificationsPage = () => {
                         {n.title}
                       </Typography>
                       <Typography variant="caption" color="text.secondary" display="block">
-                        {formatDate(n.created_at)}
+                        {formatDateTime(n.created_at)}
                       </Typography>
                     </>
                   }

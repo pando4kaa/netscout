@@ -1,6 +1,7 @@
 import { useEffect, useRef, useImperativeHandle, forwardRef } from 'react'
 import cytoscape, { Core, NodeSingular, StylesheetJson } from 'cytoscape'
 import { Box, Paper, Chip } from '@mui/material'
+import { useTranslation } from 'react-i18next'
 import { GraphNode, GraphEdge } from '../../types'
 import registerLassoShiftOnly from '../../lib/cytoscape-lasso-shift-only'
 
@@ -158,6 +159,7 @@ const InvestigationCanvas = forwardRef<InvestigationCanvasHandle, InvestigationC
     },
     ref
   ) => {
+  const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const cyRef = useRef<Core | null>(null)
   const onSelectionChangeRef = useRef(onSelectionChange)
@@ -309,7 +311,8 @@ const InvestigationCanvas = forwardRef<InvestigationCanvasHandle, InvestigationC
     }
 
     try {
-      ;(cy as unknown as { lassoSelectionEnabled?: (v: boolean) => void }).lassoSelectionEnabled?.(true)
+      const cyExt = cy as unknown as { lassoSelectionEnabled?: (v: boolean) => void }
+      cyExt.lassoSelectionEnabled?.(true)
     } catch {
       /* ignore if extension failed */
     }
@@ -318,7 +321,8 @@ const InvestigationCanvas = forwardRef<InvestigationCanvasHandle, InvestigationC
 
     return () => {
       try {
-        ;(cy as unknown as { lassoSelectionEnabled?: (v: boolean) => void }).lassoSelectionEnabled?.(false)
+        const cyExt = cy as unknown as { lassoSelectionEnabled?: (v: boolean) => void }
+        cyExt.lassoSelectionEnabled?.(false)
       } catch {
         /* ignore */
       }
@@ -334,7 +338,8 @@ const InvestigationCanvas = forwardRef<InvestigationCanvasHandle, InvestigationC
         elevation={0}
         sx={{
           width: '100%',
-          height: '560px',
+          minHeight: { xs: 260, md: 560 },
+          height: { xs: 'min(45vh, 400px)', sm: 'min(50vh, 480px)', md: '560px' },
           bgcolor: '#fafafa',
           backgroundImage: 'radial-gradient(circle, #e0e0e0 1px, transparent 1px)',
           backgroundSize: '20px 20px',
@@ -343,12 +348,12 @@ const InvestigationCanvas = forwardRef<InvestigationCanvasHandle, InvestigationC
         }}
       />
       <Box sx={{ mt: 1, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-        <Chip label="Right-click node for enrichers" size="small" variant="outlined" />
-        <Chip label="Scroll to zoom" size="small" variant="outlined" />
-        <Chip label="Drag to pan" size="small" variant="outlined" />
-        <Chip label="Ctrl+drag (Cmd on Mac): box selection" size="small" variant="outlined" />
-        <Chip label="Shift+drag: lasso selection" size="small" variant="outlined" />
-        <Chip label="Shift+click node: subtree selection" size="small" variant="outlined" />
+        <Chip label={t('results.rightClickEnrichers')} size="small" variant="outlined" />
+        <Chip label={t('results.scrollToZoom')} size="small" variant="outlined" />
+        <Chip label={t('results.dragToPan')} size="small" variant="outlined" />
+        <Chip label={t('results.boxSelection')} size="small" variant="outlined" />
+        <Chip label={t('results.lassoSelection')} size="small" variant="outlined" />
+        <Chip label={t('results.subtreeSelection')} size="small" variant="outlined" />
       </Box>
     </Box>
   )

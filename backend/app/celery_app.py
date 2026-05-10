@@ -3,10 +3,10 @@ Celery app for async tasks (enrichers, scans).
 Broker and result backend: Redis.
 """
 
-from celery import Celery
 import os
 
-_project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+from celery import Celery
+
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 celery_app = Celery(

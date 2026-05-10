@@ -23,6 +23,7 @@ import {
   Tooltip,
 } from '@mui/material'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import VisibilityIcon from '@mui/icons-material/Visibility'
 import CompareArrowsIcon from '@mui/icons-material/CompareArrows'
 import FilterListIcon from '@mui/icons-material/FilterList'
@@ -31,6 +32,7 @@ import { useScanStore } from '../store/useScanStore'
 import { useAuth } from '../contexts/AuthContext'
 import { ScanResults } from '../types'
 import CompareResultDialog, { CompareResultData } from '../components/history/CompareResultDialog'
+import { useLocaleFormatters } from '../i18n/format'
 
 interface HistoryItem {
   scan_id: string
@@ -42,6 +44,8 @@ interface HistoryItem {
 }
 
 const HistoryPage = () => {
+  const { t } = useTranslation()
+  const { formatDateTime } = useLocaleFormatters()
   const [scans, setScans] = useState<HistoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -67,12 +71,12 @@ const HistoryPage = () => {
       const data = await scanApi.getHistory(filters)
       setScans(data.scans || [])
     } catch (err) {
-      setError('Failed to load history')
+      setError(t('errors.failedToLoadHistory'))
       console.error(err)
     } finally {
       setLoading(false)
     }
-  }, [filters])
+  }, [filters, t])
 
   useEffect(() => {
     if (authLoading) return
@@ -107,7 +111,7 @@ const HistoryPage = () => {
     } catch (err) {
       console.error(err)
       setCompareResult(null)
-      setCompareError('Failed to compare scans')
+      setCompareError(t('errors.failedToCompareScans'))
     } finally {
       setCompareLoading(false)
     }
@@ -146,10 +150,7 @@ const HistoryPage = () => {
   const formatDate = (iso: string | null) => {
     if (!iso) return '-'
     try {
-      return new Date(iso).toLocaleString('en-US', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      })
+      return formatDateTime(iso)
     } catch {
       return iso
     }
@@ -169,7 +170,7 @@ const HistoryPage = () => {
     <Container maxWidth="lg">
       <Box sx={{ py: 3 }}>
         <Typography variant="h4" component="h1" gutterBottom sx={{ mb: 3 }}>
-          Scan History
+          {t('history.title')}
         </Typography>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
@@ -179,13 +180,13 @@ const HistoryPage = () => {
 
         <Paper sx={{ p: 2, mb: 3 }}>
           <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <FilterListIcon /> Filters
+            <FilterListIcon /> {t('history.filters')}
           </Typography>
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} sm={2}>
               <TextField
                 size="small"
-                label="Domain"
+                label={t('common.domain')}
                 value={filterDomain}
                 onChange={(e) => setFilterDomain(e.target.value)}
                 fullWidth
@@ -196,7 +197,7 @@ const HistoryPage = () => {
               <TextField
                 size="small"
                 type="number"
-                label="Risk min"
+                label={t('history.riskMin')}
                 value={filterRiskMin}
                 onChange={(e) => setFilterRiskMin(e.target.value === '' ? '' : Number(e.target.value))}
                 fullWidth
@@ -206,7 +207,7 @@ const HistoryPage = () => {
               <TextField
                 size="small"
                 type="number"
-                label="Risk max"
+                label={t('history.riskMax')}
                 value={filterRiskMax}
                 onChange={(e) => setFilterRiskMax(e.target.value === '' ? '' : Number(e.target.value))}
                 fullWidth
@@ -216,7 +217,7 @@ const HistoryPage = () => {
               <TextField
                 size="small"
                 type="date"
-                label="From date"
+                label={t('history.fromDate')}
                 value={filterDateFrom}
                 onChange={(e) => setFilterDateFrom(e.target.value)}
                 fullWidth
@@ -227,7 +228,7 @@ const HistoryPage = () => {
               <TextField
                 size="small"
                 type="date"
-                label="To date"
+                label={t('history.toDate')}
                 value={filterDateTo}
                 onChange={(e) => setFilterDateTo(e.target.value)}
                 fullWidth
@@ -236,7 +237,7 @@ const HistoryPage = () => {
             </Grid>
             <Grid item xs={12} sm={2}>
               <Button variant="contained" onClick={handleApplyFilters} fullWidth>
-                Apply
+                {t('common.apply')}
               </Button>
             </Grid>
           </Grid>
@@ -244,18 +245,18 @@ const HistoryPage = () => {
 
         <Paper sx={{ p: 2, mb: 3 }}>
           <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <CompareArrowsIcon /> Compare scans
+            <CompareArrowsIcon /> {t('history.compareScans')}
           </Typography>
           <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
             <FormControl size="small" sx={{ minWidth: 200 }}>
-              <InputLabel>Scan 1</InputLabel>
+              <InputLabel>{t('history.scanOne')}</InputLabel>
               <Select
                 value={compareScan1}
                 onChange={(e) => {
                   setCompareScan1(e.target.value)
                   setCompareScan2('')
                 }}
-                label="Scan 1"
+                label={t('history.scanOne')}
               >
                 <MenuItem value="">—</MenuItem>
                 {scans.map((s) => (
@@ -266,11 +267,11 @@ const HistoryPage = () => {
               </Select>
             </FormControl>
             <FormControl size="small" sx={{ minWidth: 200 }}>
-              <InputLabel>Scan 2</InputLabel>
+              <InputLabel>{t('history.scanTwo')}</InputLabel>
               <Select
                 value={compareScan2}
                 onChange={(e) => setCompareScan2(e.target.value)}
-                label="Scan 2"
+                label={t('history.scanTwo')}
                 disabled={!compareScan1}
               >
                 <MenuItem value="">—</MenuItem>
@@ -292,7 +293,7 @@ const HistoryPage = () => {
               }}
               disabled={!compareScan1 || !compareScan2 || compareScan1 === compareScan2}
             >
-              Compare
+              {t('common.compare')}
             </Button>
             {(compareScan1 || compareScan2) && (
               <Button
@@ -303,7 +304,7 @@ const HistoryPage = () => {
                   setCompareScan2('')
                 }}
               >
-                Reset
+                {t('common.reset')}
               </Button>
             )}
           </Box>
@@ -322,12 +323,12 @@ const HistoryPage = () => {
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell>Domain</TableCell>
-                  <TableCell>Date</TableCell>
-                  <TableCell align="right">Subdomains</TableCell>
-                  <TableCell align="right">Alerts</TableCell>
-                  <TableCell align="right">Risk</TableCell>
-                  <TableCell align="right">Actions</TableCell>
+                  <TableCell>{t('common.domain')}</TableCell>
+                  <TableCell>{t('common.date')}</TableCell>
+                  <TableCell align="right">{t('common.subdomains')}</TableCell>
+                  <TableCell align="right">{t('common.alerts')}</TableCell>
+                  <TableCell align="right">{t('common.risk')}</TableCell>
+                  <TableCell align="right">{t('common.actions')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -356,17 +357,17 @@ const HistoryPage = () => {
                           onClick={() => handleOpen(row.scan_id)}
                           sx={{ mr: 0.5 }}
                         >
-                          Open
+                          {t('common.open')}
                         </Button>
                         <Tooltip
                           title={
                             !compareScan1
-                              ? 'Set as Scan 1 for comparison'
+                              ? t('history.setScanOne')
                               : isScan1
-                                ? 'Scan 1'
+                                ? t('history.scanOne')
                                 : canSetAsScan2
-                                  ? 'Set as Scan 2'
-                                  : 'Compare only same domain'
+                                  ? t('history.setScanTwo')
+                                  : t('history.compareSameDomain')
                           }
                         >
                           <span>
@@ -406,8 +407,8 @@ const HistoryPage = () => {
           >
             <Typography variant="body1" color="text.secondary" sx={{ fontSize: '1.1rem' }}>
               {isAuthenticated
-                ? 'No scan history available'
-                : 'Sign in to save scans and view your scan history'}
+                ? t('history.noHistory')
+                : t('history.signInHistory')}
             </Typography>
           </Box>
         )}

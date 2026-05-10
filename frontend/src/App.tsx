@@ -1,6 +1,8 @@
+import { useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { ThemeProvider, createTheme } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
+import { useTranslation } from 'react-i18next'
 import { AuthProvider } from './contexts/AuthContext'
 import SessionExpiryBridge from './components/auth/SessionExpiryBridge'
 import Layout from './components/layout/Layout'
@@ -20,15 +22,21 @@ const theme = createTheme({
   palette: {
     mode: 'light',
     primary: {
-      main: '#1976d2',
+      main: '#0d9488',
+      light: '#5eead4',
+      dark: '#0f766e',
+      contrastText: '#ffffff',
     },
     secondary: {
-      main: '#dc004e',
+      main: '#ea580c',
+      light: '#fb923c',
+      dark: '#c2410c',
     },
     background: {
-      default: '#f5f5f5',
+      default: '#f0f4f8',
       paper: '#ffffff',
     },
+    divider: 'rgba(15, 23, 42, 0.08)',
   },
   typography: {
     fontFamily: '"Raleway", "Roboto", "Helvetica", "Arial", sans-serif',
@@ -78,7 +86,8 @@ const theme = createTheme({
     MuiCard: {
       styleOverrides: {
         root: {
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+          boxShadow: '0 1px 3px rgba(15,23,42,0.06), 0 4px 14px rgba(15,23,42,0.06)',
+          border: '1px solid rgba(15, 23, 42, 0.06)',
         },
       },
     },
@@ -90,10 +99,23 @@ const theme = createTheme({
         },
       },
     },
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          backgroundImage: 'none',
+        },
+      },
+    },
   },
 })
 
 function App() {
+  const { t, i18n } = useTranslation()
+
+  useEffect(() => {
+    document.title = t('common.appTitle')
+  }, [i18n.language, t])
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />

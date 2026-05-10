@@ -1,135 +1,109 @@
 """
-WHOIS Lookup Module
+WHOIS Lookup - retrieves WHOIS information for a domain.
 
-This module provides functionality to retrieve WHOIS information for a domain.
+`python-whois` is fragile across TLDs (it can both raise during parsing and
+return wildly different shapes). This module never lets WHOIS failures crash
+the broader scan; on error it returns a result dict with an `error` field.
 """
 
-import whois
-from typing import Dict, Optional, Any, Iterable
+import logging
 from datetime import datetime
+from typing import Any, Dict, Iterable, Optional
+
+import whois
 from dateutil import parser as date_parser
+
+logger = logging.getLogger(__name__)
+
+
+def _empty_whois_result(domain: str, error: Optional[str] = None) -> Dict[str, Any]:
+    return {
+        "domain": domain,
+        "registrar": None,
+        "creation_date": None,
+        "expiration_date": None,
+        "name_servers": [],
+        "emails": [],
+        "status": None,
+        **({"error": error} if error else {}),
+    }
 
 
 def _normalize_date(value: Any) -> Optional[str]:
-    """
-    Normalize various WHOIS date formats to YYYY-MM-DD.
-    python-whois can return datetime, strings, lists, or other weird values.
-    We never raise here: if we cannot parse, return None.
-    """
+    """Normalize WHOIS date values (datetime, str, list, None) to YYYY-MM-DD or None."""
     if value is None:
         return None
 
-    candidates: Iterable[Any]
-    if isinstance(value, list) or isinstance(value, tuple) or isinstance(value, set):
-        candidates = value
-    else:
-        candidates = [value]
+    candidates: Iterable[Any] = value if isinstance(value, (list, tuple, set)) else [value]
 
-    for v in candidates:
-        if v is None:
+    for candidate in candidates:
+        if candidate is None or isinstance(candidate, (int, float)):
             continue
-        if isinstance(v, datetime):
-            return v.strftime("%Y-%m-%d")
-        if isinstance(v, (int, float)):
-            continue
+        if isinstance(candidate, datetime):
+            return candidate.strftime("%Y-%m-%d")
 
-        s = str(v).strip()
-        if not s or s.lower() in ("none", "null", "0"):
+        text_value = str(candidate).strip()
+        if not text_value or text_value.lower() in ("none", "null", "0"):
             continue
 
         try:
-            dt = date_parser.parse(s, fuzzy=True, ignoretz=True)
-            return dt.strftime("%Y-%m-%d")
-        except Exception:
+            parsed = date_parser.parse(text_value, fuzzy=True, ignoretz=True)
+            return parsed.strftime("%Y-%m-%d")
+        except (ValueError, OverflowError, date_parser.ParserError):
             continue
 
     return None
 
 
-def get_whois_info(domain: str) -> Dict:
+def _coerce_str_list(value: Any, *, lower: bool = False) -> list:
+    """Coerce WHOIS attribute (str | iterable | None) into a clean list[str]."""
+    if not value:
+        return []
+    items = value if isinstance(value, (list, tuple, set)) else [value]
+    result = []
+    for item in items:
+        if not item:
+            continue
+        text = str(item)
+        result.append(text.lower() if lower else text)
+    return result
+
+
+def get_whois_info(domain: str) -> Dict[str, Any]:
     """
-    Retrieves WHOIS information for a domain.
-    
-    Args:
-        domain: Domain name to query
-    
-    Returns:
-        Dictionary with WHOIS data:
-        {
-            'registrar': '...',
-            'creation_date': '2020-01-15',
-            'expiration_date': '2025-01-15',
-            'name_servers': [...],
-            'emails': [...],
-            'status': 'active'
-        }
-    
-    Notes:
-        Some registries/TLDs return non-standard WHOIS formats, and `python-whois`
-        may raise during parsing (e.g. "Unknown date format ...").
-        This function must NOT crash the full scan: if WHOIS fails, it returns
-        a dict with an `error` field instead of raising.
+    Retrieve WHOIS information for `domain`.
+
+    Returns a dict with keys: registrar, creation_date, expiration_date,
+    name_servers, emails, status. On failure returns the same shape with
+    an additional `error` key (does not raise).
     """
     try:
-        try:
-            w = whois.whois(domain)
-        except Exception as e:
-            return {
-                "domain": domain,
-                "registrar": None,
-                "creation_date": None,
-                "expiration_date": None,
-                "name_servers": [],
-                "emails": [],
-                "status": None,
-                "error": f"WHOIS lookup failed: {str(e)}",
-            }
+        record = whois.whois(domain)
+    except Exception as exc:
+        return _empty_whois_result(domain, error=f"WHOIS lookup failed: {exc}")
 
-        creation_date = _normalize_date(getattr(w, "creation_date", None))
-        expiration_date = _normalize_date(getattr(w, "expiration_date", None))
-        
-        # Extract emails
-        emails = []
-        w_emails = getattr(w, "emails", None)
-        if w_emails:
-            if isinstance(w_emails, (list, tuple, set)):
-                emails = [str(email) for email in w_emails if email]
-            else:
-                emails = [str(w_emails)]
-        
-        # Extract name servers
-        name_servers = []
-        w_name_servers = getattr(w, "name_servers", None)
-        if w_name_servers:
-            if isinstance(w_name_servers, (list, tuple, set)):
-                name_servers = [str(ns).lower() for ns in w_name_servers]
-            else:
-                name_servers = [str(w_name_servers).lower()]
+    try:
+        emails = _coerce_str_list(getattr(record, "emails", None))
+        name_servers = _coerce_str_list(getattr(record, "name_servers", None), lower=True)
 
-        # Status can be list depending on TLD/registry
-        w_status = getattr(w, "status", None)
-        if isinstance(w_status, (list, tuple, set)):
-            status: Optional[str] = ", ".join([str(s) for s in w_status if s])
+        status_value = getattr(record, "status", None)
+        if isinstance(status_value, (list, tuple, set)):
+            status: Optional[str] = ", ".join(str(s) for s in status_value if s) or None
         else:
-            status = str(w_status) if w_status else None
-        
+            status = str(status_value) if status_value else None
+
+        registrar_value = getattr(record, "registrar", None)
+        registrar = str(registrar_value) if registrar_value else None
+
         return {
             "domain": domain,
-            "registrar": str(getattr(w, "registrar", None)) if getattr(w, "registrar", None) else None,
-            "creation_date": creation_date,
-            "expiration_date": expiration_date,
+            "registrar": registrar,
+            "creation_date": _normalize_date(getattr(record, "creation_date", None)),
+            "expiration_date": _normalize_date(getattr(record, "expiration_date", None)),
             "name_servers": name_servers,
             "emails": emails,
             "status": status,
         }
-    except Exception as e:
-        return {
-            "domain": domain,
-            "registrar": None,
-            "creation_date": None,
-            "expiration_date": None,
-            "name_servers": [],
-            "emails": [],
-            "status": None,
-            "error": f"WHOIS lookup failed: {str(e)}",
-        }
+    except Exception as exc:
+        logger.warning("WHOIS post-parse failed for %s: %s", domain, exc)
+        return _empty_whois_result(domain, error=f"WHOIS lookup failed: {exc}")

@@ -43,6 +43,8 @@ export interface CertificateInfo {
   subject_cn?: string
   issuer?: string
   san?: string[]
+  not_before?: string | null
+  not_after?: string | null
   is_expired?: boolean
   error?: string
 }
@@ -75,6 +77,62 @@ export interface Alert {
   details?: Record<string, unknown>
 }
 
+export interface RiskBreakdownItem {
+  type: string
+  message: string
+  target?: string
+  level: RiskLevel | string
+  severity_score: number
+  severity_source: 'legacy' | 'cvss' | string
+  asset_weight: number
+  likelihood: number
+  contribution: number
+  asset_class?: string
+  cves?: Array<{ id: string; cvss?: number | null }>
+}
+
+export interface RiskFactorItem {
+  name: string
+  score: number
+  weight: number
+  weighted_score: number
+  rationale?: string | null
+}
+
+export interface RiskGroupItem {
+  group_id: string
+  type: string
+  title: string
+  risk_score: number
+  risk_level: RiskLevel | 'CRITICAL' | string
+  affected_assets: number
+  representative_targets: string[]
+  severity: number
+  severity_source: 'legacy' | 'cvss' | string
+  likelihood: number
+  impact: number
+  exposure_score: number
+  exposure_multiplier: number
+  confidence: 'low' | 'medium' | 'high' | 'unknown' | string
+  confidence_multiplier: number
+  factors?: {
+    likelihood?: RiskFactorItem[]
+    impact?: RiskFactorItem[]
+    confidence?: RiskFactorItem[]
+  }
+  cves?: Array<{
+    id?: string
+    cve?: string
+    cvss?: number | null
+    epss?: number | null
+    percentile?: number | null
+    kev?: boolean
+    kev_details?: Record<string, unknown>
+  }>
+  evidence?: string[]
+  recommendation?: string | null
+}
+
 export interface ScanResults {
   target_domain: string
   scan_date?: string
@@ -94,12 +152,26 @@ export interface ScanResults {
     total_dns_records?: number
     total_alerts?: number
     risk_score?: number
+    risk_composite?: number | null
+    risk_breakdown?: RiskBreakdownItem[]
+    risk_overall?: number | null
+    risk_level?: RiskLevel | 'CRITICAL' | string | null
+    risk_method?: string | null
+    max_severity?: number | null
+    exposure_score?: number | null
+    confidence?: string | null
+    risk_groups?: RiskGroupItem[]
   }
   correlation?: {
     subdomain_count?: number
     unique_ips?: number
     ip_to_subdomains?: Record<string, string[]>
     ptr_records?: Record<string, string>
+    shared_certificate_hosts?: Array<{
+      certificate_key: string
+      hosts: string[]
+      san_count?: number
+    }>
   }
 }
 
