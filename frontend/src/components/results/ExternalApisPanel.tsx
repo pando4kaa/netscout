@@ -35,7 +35,7 @@ interface ExternalApisPanelProps {
       results?: Array<{ url?: string; screenshot?: string }>
     }
     threatcrowd?: { votes?: number; subdomains?: string[]; resolutions?: Array<{ ip_address?: string }> }
-    bgpview?: { ips?: Record<string, { asn?: number; asn_name?: string; prefix?: string }> }
+    ripestat?: { ips?: Record<string, { asn?: number; asn_name?: string; prefix?: string }> }
     abuseipdb?: { ips?: Record<string, { abuse_score?: number; total_reports?: number; isp?: string; country_code?: string }> }
     securitytrails?: {
       domain?: string
@@ -48,7 +48,7 @@ interface ExternalApisPanelProps {
         txt?: { first_seen?: string; values?: Array<{ value?: string }> }
       }
     }
-    phishtank?: { url?: string; in_database?: boolean; valid?: boolean; verified?: string; phish_id?: string; phish_detail_page?: string }
+    openphish?: { domain?: string; in_database?: boolean; phishing_urls?: string[]; feed_size?: number }
     zoomeye?: { domain?: string; total?: number; hosts?: Array<{ ip?: string; port?: number; country?: string; asn?: string; app?: string }> }
     criminalip?: { domain?: string; risk_score?: number; is_safe?: boolean; data?: Record<string, unknown> }
     pulsedive?: { domain?: string; risk?: string; risk_recommendation?: string; threats?: string[]; feeds?: string[]; properties?: Record<string, unknown> }
@@ -323,15 +323,15 @@ const ExternalApisPanel = ({ data }: ExternalApisPanelProps) => {
         </Card>
       )}
 
-      {data.bgpview && data.bgpview.ips && Object.keys(data.bgpview.ips).length > 0 && (
+      {data.ripestat && data.ripestat.ips && Object.keys(data.ripestat.ips).length > 0 && (
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <ApiIcon /> BGPView
-              <HelpTooltip topic="api_bgpview" />
+              <ApiIcon /> RIPEstat
+              <HelpTooltip topic="api_ripestat" />
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              {t('results.bgpResolvedIps')}
+              {t('results.ripestatAsnPrefix')}
             </Typography>
             <TableContainer component={Paper} variant="outlined">
               <Table size="small">
@@ -343,7 +343,7 @@ const ExternalApisPanel = ({ data }: ExternalApisPanelProps) => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {Object.entries(data.bgpview.ips).map(([ip, info]) => (
+                  {Object.entries(data.ripestat.ips).map(([ip, info]) => (
                     <TableRow key={ip}>
                       <TableCell>{ip}</TableCell>
                       <TableCell>{info.asn ?? '-'} {info.asn_name ? `(${info.asn_name})` : ''}</TableCell>
@@ -480,33 +480,35 @@ const ExternalApisPanel = ({ data }: ExternalApisPanelProps) => {
         </Card>
       )}
 
-      {data.phishtank && (
+      {data.openphish && (
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <ApiIcon /> PhishTank
-              <HelpTooltip topic="api_phishtank" />
+              <ApiIcon /> OpenPhish
+              <HelpTooltip topic="api_openphish" />
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              {t('results.phishingDatabaseCheck', { target: data.phishtank.url ?? t('common.domain') })}
+              {t('results.phishingDatabaseCheck', { target: data.openphish.domain ?? t('common.domain') })}
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-              {data.phishtank.in_database ? (
+              {data.openphish.in_database ? (
                 <>
                   <Chip icon={<ErrorIcon />} label={t('results.phishingListed')} color="error" size="small" sx={{ fontWeight: 600 }} />
-                  {data.phishtank.phish_detail_page && (
-                    <Link href={data.phishtank.phish_detail_page} target="_blank" rel="noopener noreferrer" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.875rem' }}>
-                      {t('results.phishId', { id: data.phishtank.phish_id })} <OpenInNewIcon sx={{ fontSize: 14 }} />
+                  {(data.openphish.phishing_urls ?? []).slice(0, 3).map((u, i) => (
+                    <Link key={i} href={u} target="_blank" rel="noopener noreferrer" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.875rem' }}>
+                      {u} <OpenInNewIcon sx={{ fontSize: 14 }} />
                     </Link>
-                  )}
-                  {data.phishtank.verified && (
-                    <Chip label={t('results.verified', { value: data.phishtank.valid ? t('common.yes') : t('common.no') })} size="small" variant="outlined" />
-                  )}
+                  ))}
                 </>
               ) : (
                 <Chip icon={<CheckCircleIcon />} label={t('results.phishingNotListed')} color="success" size="small" sx={{ fontWeight: 600 }} />
               )}
             </Box>
+            {data.openphish.feed_size !== undefined && (
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                {t('results.openphishFeedSize', { count: data.openphish.feed_size })}
+              </Typography>
+            )}
           </CardContent>
         </Card>
       )}

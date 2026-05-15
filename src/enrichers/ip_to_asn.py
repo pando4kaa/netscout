@@ -1,5 +1,5 @@
 """
-IP to ASN Enricher - find ASN for an IP via BGPView API.
+IP to ASN Enricher - resolve ASN for an IP via RIPEstat (RIPE NCC Data API).
 """
 
 from typing import Any, Callable, Dict
@@ -9,7 +9,7 @@ from src.enrichers.external_apis import ExternalApiEnricher
 
 
 class IpToAsnEnricher(AbstractEnricher):
-    """Enricher for IP -> ASN (BGPView)."""
+    """Enricher for IP -> ASN (RIPEstat)."""
 
     name = "ip_to_asn"
 
@@ -22,11 +22,11 @@ class IpToAsnEnricher(AbstractEnricher):
         ip: str,
         progress: Callable[[str, int, str], None],
     ) -> tuple:
-        """Resolve ASN for `ip` via BGPView and return (new_nodes, new_edges)."""
+        """Resolve ASN for `ip` via RIPEstat and return (new_nodes, new_edges)."""
         enricher = ExternalApiEnricher()
         result = enricher.enrich("", {"dns_info": {"a_records": [ip]}})
-        bgp_ips = (result.get("external_apis") or {}).get("bgpview", {}).get("ips") or {}
-        ip_data = bgp_ips.get(ip) or {}
+        rs_ips = (result.get("external_apis") or {}).get("ripestat", {}).get("ips") or {}
+        ip_data = rs_ips.get(ip) or {}
         asn_num = ip_data.get("asn")
 
         nodes = []

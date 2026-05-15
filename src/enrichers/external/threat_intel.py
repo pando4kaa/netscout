@@ -9,8 +9,8 @@ Providers covered here:
     * VirusTotal       - reputation lookup (cached + rate-limited)
     * AlienVault OTX   - pulse / threat indicators
     * AbuseIPDB        - IP abuse score
-    * ThreatCrowd      - free domain threat intel
-    * PhishTank        - phishing URL lookup
+    * ThreatCrowd      - free domain threat intel (deprecated, disabled)
+    * OpenPhish        - live phishing feed lookup (no API key required)
     * Pulsedive        - aggregated threat intel
     * Criminal IP      - domain risk score
 """
@@ -28,8 +28,6 @@ from src.config.settings import (
     USER_AGENT,
     VIRUSTOTAL_API_KEY,
 )
-
-from ._common import PHISHTANK_PLACEHOLDER_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -177,43 +175,37 @@ async def fetch_threatcrowd_domain(
     return None
 
 
-async def fetch_phishtank_check(
-    session: aiohttp.ClientSession, url: str, app_key: Optional[str] = None
+async def fetch_openphish_check(
+    session: aiohttp.ClientSession, domain: str
 ) -> Optional[Dict[str, Any]]:
-    """Check URL against the PhishTank phishing database (app_key optional)."""
+    """Check domain against the OpenPhish community phishing feed (no API key required).
+
+    Downloads the live feed (~300 active phishing URLs) and checks whether the
+    supplied domain appears in any of them.  Returns a result dict even when the
+    domain is clean so callers can distinguish "checked and clean" from "not checked".
+    """
     try:
-        post_url = "https://checkurl.phishtank.com/checkurl/"
-        body: Dict[str, str] = {"url": url, "format": "json"}
-        if app_key and app_key != PHISHTANK_PLACEHOLDER_KEY:
-            body["app_key"] = app_key
-        headers = {
-            "User-Agent": USER_AGENT,
-            "Content-Type": "application/x-www-form-urlencoded",
-        }
-        async with session.post(
-            post_url, data=body, headers=headers,
+        async with session.get(
+            "https://openphish.com/feed.txt",
             timeout=aiohttp.ClientTimeout(total=HTTP_TIMEOUT),
         ) as resp:
-            if resp.status == 200:
-                result = await resp.json()
-                results = result.get("results", {}) if isinstance(result, dict) else {}
-                return {
-                    "url": url,
-                    "in_database": results.get("in_database", False),
-                    "valid": results.get("valid"),
-                    "verified": results.get("verified"),
-                    "phish_id": results.get("phish_id"),
-                    "phish_detail_page": results.get("phish_detail_page"),
-                }
+            if resp.status != 200:
+                logger.debug("OpenPhish feed error: status=%s", resp.status)
+                return None
             text = await resp.text()
-            hint = (
-                "Cloudflare block"
-                if resp.status == 403 and "cf_chl" in text[:500]
-                else (text[:150] + "..." if len(text) > 150 else text)
-            )
-            logger.warning("PhishTank API error: url=%s status=%s (%s)", url, resp.status, hint)
+
+        feed_urls = [line.strip() for line in text.splitlines() if line.strip()]
+        domain_lower = domain.lower()
+        matches = [u for u in feed_urls if domain_lower in u.lower()]
+
+        return {
+            "domain": domain,
+            "in_database": bool(matches),
+            "phishing_urls": matches[:10],
+            "feed_size": len(feed_urls),
+        }
     except Exception as exc:
-        logger.warning("PhishTank request failed: url=%s error=%s", url, exc)
+        logger.debug("OpenPhish request failed: domain=%s error=%s", domain, exc)
     return None
 
 
