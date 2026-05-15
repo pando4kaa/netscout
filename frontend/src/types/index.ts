@@ -246,7 +246,7 @@ export const INVESTIGATION_EXTERNAL_APIS_BY_ENTITY: Record<string, Array<{ id: s
     { id: 'threatcrowd', label: 'ThreatCrowd' },
   ],
   ip: [
-    { id: 'bgpview', label: 'BGPView' },
+    { id: 'ripestat', label: 'RIPEstat' },
     { id: 'abuseipdb', label: 'AbuseIPDB' },
   ],
 }
@@ -266,6 +266,6 @@ export const ENRICHER_OPSEC: Record<string, 'passive' | 'semi-passive' | 'active
   'external_apis:alienvault_otx': 'passive',
   'external_apis:urlscan': 'passive',
   'external_apis:threatcrowd': 'passive',
-  'external_apis:bgpview': 'passive',
+  'external_apis:ripestat': 'passive',
   'external_apis:abuseipdb': 'passive',
 }

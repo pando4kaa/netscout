@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 def _get_engine_url() -> str:
-    """Return PostgreSQL URL with the explicit psycopg2 driver suffix."""
+    """Return DB URL; PostgreSQL gets explicit psycopg2 driver suffix."""
     if not DATABASE_URL:
         raise ValueError(
             "DATABASE_URL is required. Set it in .env "
@@ -31,11 +31,19 @@ def _get_engine_url() -> str:
     return url
 
 
-engine = create_engine(
-    _get_engine_url(),
-    pool_pre_ping=True,
-    connect_args={"connect_timeout": 5},  # fail fast if PostgreSQL is down
-)
+def _create_engine():
+    url = _get_engine_url()
+    if url.startswith("sqlite"):
+        # Used by automated tests (in-memory); no connect_timeout (invalid for sqlite3).
+        return create_engine(url, connect_args={"check_same_thread": False})
+    return create_engine(
+        url,
+        pool_pre_ping=True,
+        connect_args={"connect_timeout": 5},  # fail fast if PostgreSQL is down
+    )
+
+
+engine = _create_engine()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 

@@ -16,7 +16,7 @@ from .threat_intel import (
     fetch_abuseipdb_check,
     fetch_alienvault_otx_domain,
     fetch_criminalip_domain,
-    fetch_phishtank_check,
+    fetch_openphish_check,
     fetch_pulsedive_info,
     fetch_threatcrowd_domain,
     fetch_virustotal_domain,
@@ -28,15 +28,15 @@ from .discovery import (
     fetch_wayback_first_snapshot,
     fetch_zoomeye_search,
 )
-from .network import fetch_bgpview_ip
+from .network import fetch_ripestat_ip
 
 __all__ = [
     "fetch_abuseipdb_check",
     "fetch_alienvault_otx_domain",
-    "fetch_bgpview_ip",
     "fetch_criminalip_domain",
-    "fetch_phishtank_check",
+    "fetch_openphish_check",
     "fetch_pulsedive_info",
+    "fetch_ripestat_ip",
     "fetch_securitytrails_domain",
     "fetch_ssllabs_analyze",
     "fetch_threatcrowd_domain",

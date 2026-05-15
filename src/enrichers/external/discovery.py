@@ -98,7 +98,7 @@ async def fetch_zoomeye_search(
     if not api_key:
         return None
     try:
-        url = "https://api.zoomeye.org/host/search"
+        url = "https://api.zoomeye.ai/host/search"
         params = {
             "query": f"domain:{domain}",
             "page": 1,

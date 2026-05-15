@@ -35,7 +35,7 @@ const ENRICHER_ICONS: Record<string, React.ReactNode> = {
   'external_apis:alienvault_otx': <ApiIcon fontSize="small" />,
   'external_apis:urlscan': <ApiIcon fontSize="small" />,
   'external_apis:threatcrowd': <ApiIcon fontSize="small" />,
-  'external_apis:bgpview': <ApiIcon fontSize="small" />,
+  'external_apis:ripestat': <ApiIcon fontSize="small" />,
   'external_apis:abuseipdb': <ApiIcon fontSize="small" />,
 }
 

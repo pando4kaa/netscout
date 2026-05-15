@@ -30,7 +30,6 @@ from src.config.settings import (
     ABUSEIPDB_API_KEY,
     ALIENVAULT_OTX_API_KEY,
     CRIMINALIP_API_KEY,
-    PHISHTANK_APP_KEY,
     PULSEDIVE_API_KEY,
     SECURITYTRAILS_API_KEY,
     USER_AGENT,
@@ -42,9 +41,9 @@ from src.enrichers.base import AbstractEnricher
 from src.enrichers.external import (
     fetch_abuseipdb_check,
     fetch_alienvault_otx_domain,
-    fetch_bgpview_ip,
+    fetch_ripestat_ip,
     fetch_criminalip_domain,
-    fetch_phishtank_check,
+    fetch_openphish_check,
     fetch_pulsedive_info,
     fetch_securitytrails_domain,
     fetch_ssllabs_analyze,
@@ -97,6 +96,7 @@ def _domain_task_specs(domain: str) -> List[_TaskSpec]:
         _TaskSpec(
             "threatcrowd",
             lambda session, _d=domain: fetch_threatcrowd_domain(session, _d),
+            enabled=False,  # service discontinued — DNS non-resolvable; OTX covers the same data
         ),
         _TaskSpec(
             "wayback",
@@ -107,10 +107,8 @@ def _domain_task_specs(domain: str) -> List[_TaskSpec]:
             lambda session, _d=domain: fetch_ssllabs_analyze(session, _d),
         ),
         _TaskSpec(
-            "phishtank",
-            lambda session, _d=domain: fetch_phishtank_check(
-                session, f"https://{_d}", PHISHTANK_APP_KEY
-            ),
+            "openphish",
+            lambda session, _d=domain: fetch_openphish_check(session, _d),
         ),
         _TaskSpec(
             "zoomeye",
@@ -136,12 +134,12 @@ def _domain_task_specs(domain: str) -> List[_TaskSpec]:
 
 
 def _ip_task_specs(ips: List[str]) -> List[_TaskSpec]:
-    """Return per-IP provider tasks (BGPView always; AbuseIPDB if key set)."""
+    """Return per-IP provider tasks (RIPEstat always; AbuseIPDB if key set)."""
     specs: List[_TaskSpec] = []
     for ip in ips:
         specs.append(_TaskSpec(
-            "bgpview",
-            lambda session, _ip=ip: fetch_bgpview_ip(session, _ip),
+            "ripestat",
+            lambda session, _ip=ip: fetch_ripestat_ip(session, _ip),
         ))
     if ABUSEIPDB_API_KEY:
         for ip in ips:
@@ -167,14 +165,14 @@ def _merge_results(
 ) -> Dict[str, Any]:
     """Combine ``(key, payload)`` tuples into the final ``external_apis`` dict."""
     merged: Dict[str, Any] = {}
-    bgp_by_ip: Dict[str, Any] = {}
+    ripestat_by_ip: Dict[str, Any] = {}
     abuseipdb_by_ip: Dict[str, Any] = {}
 
     for key, payload in pairs:
         if payload is None or isinstance(payload, Exception):
             continue
-        if key == "bgpview":
-            bgp_by_ip[payload["ip"]] = payload
+        if key == "ripestat":
+            ripestat_by_ip[payload["ip"]] = payload
         elif key == "abuseipdb":
             abuseipdb_by_ip[payload["ip"]] = payload
         elif key == "virustotal":
@@ -182,8 +180,8 @@ def _merge_results(
         else:
             merged[key] = payload
 
-    if bgp_by_ip:
-        merged["bgpview"] = {"ips": bgp_by_ip}
+    if ripestat_by_ip:
+        merged["ripestat"] = {"ips": ripestat_by_ip}
     if abuseipdb_by_ip:
         merged["abuseipdb"] = {"ips": abuseipdb_by_ip}
     return merged
@@ -222,10 +220,13 @@ def fetch_single_external_api(
                 return await fetch_alienvault_otx_domain(session, domain)
             if api_name == "urlscan" and domain:
                 return await fetch_urlscan_search(session, domain)
-            if api_name == "threatcrowd" and domain:
-                return await fetch_threatcrowd_domain(session, domain)
+            if api_name in ("openphish", "phishtank") and domain:
+                return await fetch_openphish_check(session, domain)
+            if api_name == "ripestat" and ip:
+                return await fetch_ripestat_ip(session, ip)
+            # Legacy investigation / API id (deprecated)
             if api_name == "bgpview" and ip:
-                return await fetch_bgpview_ip(session, ip)
+                return await fetch_ripestat_ip(session, ip)
             if api_name == "abuseipdb" and ip:
                 return await fetch_abuseipdb_check(session, ip, ABUSEIPDB_API_KEY or "")
         return None

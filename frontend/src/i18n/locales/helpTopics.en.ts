@@ -190,9 +190,9 @@ export const helpTopicsEn = {
   },
   external_apis: {
     title: 'External APIs',
-    what: 'Data from various security services: VirusTotal (antivirus engines), Shodan (ports, vulnerabilities), Censys, AlienVault OTX (threat intel), URLScan, PhishTank (phishing), AbuseIPDB, BGPView, SSL Labs, etc.',
+    what: 'Data from various security services: VirusTotal (antivirus engines), Shodan (ports, vulnerabilities), Censys, AlienVault OTX (threat intel), URLScan, OpenPhish (phishing feed), AbuseIPDB, RIPEstat (BGP/ASN), SSL Labs, etc.',
     whyImportant: 'Each service has its own knowledge base. Together they give a broader picture: whether the domain is in threat lists, which ports are open, whether there is phishing.',
-    whyBad: 'If VirusTotal shows "malicious" — domain is on blacklists. PhishTank "in database" — phishing. AlienVault pulses — domain mentioned in threat reports.',
+    whyBad: 'If VirusTotal shows "malicious" — domain is on blacklists. OpenPhish "in database" — active phishing. AlienVault pulses — domain mentioned in threat reports.',
     tips: 'Some APIs require keys (VIRUSTOTAL_API_KEY etc.). Add them to .env for full checks.',
   },
   api_virustotal: {
@@ -237,12 +237,12 @@ export const helpTopicsEn = {
     whyBad: 'High votes — community considers domain suspicious. Check related subdomains.',
     tips: 'Works automatically. Community-driven — data from security researchers.',
   },
-  api_bgpview: {
-    title: 'BGPView',
-    what: 'BGP (Border Gateway Protocol) data: ASN (autonomous system), network prefix for each IP. Shows who owns the network block.',
-    whyImportant: 'ASN — provider identifier (e.g. Cloudflare, AWS). Prefix — IP range. Helps understand hosting and geolocation.',
-    whyBad: 'Unexpected ASN — IP may belong to a different provider than you expected.',
-    tips: 'Works automatically. Table: IP, ASN (provider name), prefix.',
+  api_ripestat: {
+    title: 'RIPEstat',
+    what: 'RIPE NCC RIPEstat Data API: originating ASN and covering BGP prefix for a public IP, plus AS holder name. Official RIR-sourced routing snapshot.',
+    whyImportant: 'ASN identifies the network operator (e.g. Google, Cloudflare). Prefix shows the announced IP range. Helps map infrastructure and hosting context.',
+    whyBad: 'Unexpected ASN — the IP may sit behind a CDN or different provider than expected. Bogon/private IPs return no data.',
+    tips: 'Works automatically, no API key. Table: IP, ASN (holder), prefix. Data: https://stat.ripe.net/',
   },
   api_abuseipdb: {
     title: 'AbuseIPDB',
@@ -258,12 +258,12 @@ export const helpTopicsEn = {
     whyBad: 'Sudden DNS changes — possible compromise. Unknown tags — verify.',
     tips: 'Requires SECURITYTRAILS_API_KEY. Shows history and current DNS state.',
   },
-  api_phishtank: {
-    title: 'PhishTank',
-    what: 'Phishing URL database. Checks if domain or URL is in the list of confirmed phishing sites. Community-driven, free.',
-    whyImportant: 'In database = true — domain was used for phishing. Phish ID — link to details. Verified — whether confirmed by humans.',
-    whyBad: 'If in database — domain is on phishing blacklist. Critical for reputation.',
-    tips: 'Works automatically. May return 403 due to Cloudflare — add delay or use API key.',
+  api_openphish: {
+    title: 'OpenPhish',
+    what: 'Community phishing feed with ~300 active phishing URLs updated in real time. No API key required.',
+    whyImportant: 'In database = true — domain appears in active phishing URLs. phishing_urls — exact URLs where the domain was found.',
+    whyBad: 'If in database — domain is actively used for phishing. Treat as high-risk immediately.',
+    tips: 'Works automatically without any API key. Feed is refreshed frequently by the OpenPhish community.',
   },
   api_zoomeye: {
     title: 'ZoomEye',
